@@ -1,7 +1,7 @@
 import Foundation
+import MLX
 import MLXAudioSTT
 import SpeechEngineText
-import Synchronization
 
 /// MLX-bound adapters between the upstream engines and the server's
 /// `SpeechASRStreamingSession` contract. The pure contract types live in
@@ -145,138 +145,56 @@ final class Qwen3ASREngine: SpeechASREngine, @unchecked Sendable {
     func makeSession(
         transcriptionDelayMs: Int?, transcriptDelivery: TranscriptDelivery
     ) -> SpeechASRStreamingSession {
-        // Qwen3-ASR emits provisional tokens that promote to confirmed text only
-        // after N agreeing decode passes AND the delay preset elapses. Its latency
-        // knob is therefore StreamingConfig.delayPreset; map the app's
-        // transcriptionDelayMs onto a custom preset, else keep the engine's
-        // balanced .agent default.
-        var config = StreamingConfig()
-        if let transcriptionDelayMs {
-            config.delayPreset = .custom(ms: transcriptionDelayMs)
-        }
+        // Qwen's native decoder emits provisional rewrites. The app's append-only
+        // insertion contract cannot represent those rewrites, so buffer the
+        // utterance and perform one exact decode at commit.
+        _ = transcriptionDelayMs
         _ = transcriptDelivery
-        return Qwen3ASRSession(
-            session: StreamingInferenceSession(model: model, config: config)
-        )
+        return Qwen3ASRSession(model: model)
     }
 }
 
-/// Maps the upstream `StreamingInferenceSession` (feedAudio + AsyncStream of
-/// `TranscriptionEvent`) onto the server's synchronous step/finish/text contract.
-///
-/// Semantic differences from the Voxtral/Nemotron delta contract:
-/// - `text` exposes only STABILIZED (confirmed) text. Qwen3-ASR yields provisional
-///   tokens that are withheld until they agree across `minAgreementPasses` decode
-///   passes and the delay preset elapses, then promote in bursts. Voxtral/Nemotron
-///   surface provisional text immediately; here provisional rewrites never reach
-///   the wire at all (cleaner for the no-backspace insertion path).
-/// - Event delivery is asynchronous: the upstream session runs decode passes on its
-///   own detached tasks and reports through an AsyncStream. `step` only feeds audio
-///   and returns immediately; newly confirmed text surfaces on later reads of `text`,
-///   so live text lags the audio by roughly the decode interval + promotion delay.
-///   `finish` blocks this queue thread until the final `.ended` text is recorded.
-/// - `SpeechStreamDelta.tokenIds` is empty: `TranscriptionEvent` carries text only
-///   (token ids are internal to the upstream decode passes).
+/// Qwen's native stream exposes provisional rewrites, while this server's
+/// append-only contract cannot retract text already inserted into a focused app.
+/// Buffering and using the model's exact offline generation path at commit keeps
+/// the wire transcript correct and avoids repeated-window O(n²) work. This engine
+/// intentionally emits no partials; its transcript is produced on final commit.
 final class Qwen3ASRSession: SpeechASRStreamingSession, @unchecked Sendable {
-    private struct Snapshot {
-        var confirmedText = ""
-        var provisionalText = ""
-        var finalText: String?
-        var emittedText = ""
-    }
+    private let model: Qwen3ASRModel
+    private var audioSamples: [Float] = []
+    private var finalText = ""
+    private var didFinish = false
 
-    /// Reference-typed holder for the shared snapshot state. `Mutex` is move-only,
-    /// so the consumer task and the server's synchronous reads share the lock (and
-    /// the end signal) through this box instead of capturing the values directly.
-    private final class SharedState: @unchecked Sendable {
-        let lock = Mutex(Snapshot())
-        let endedSignal = DispatchSemaphore(value: 0)
-    }
-
-    private let session: StreamingInferenceSession
-    private let shared = SharedState()
-    private let consumer: Task<Void, Never>
-
-    init(session: StreamingInferenceSession) {
-        self.session = session
-        // The server drives step/finish/text synchronously from its serial
-        // inference queue; this task is the only reader of the event stream and
-        // folds every event into the lock-protected snapshot. It captures
-        // `session`/`shared` directly (never `self`) so it does not keep the
-        // adapter alive after the server drops it.
-        self.consumer = Task { [session, shared] in
-            for await event in session.events {
-                switch event {
-                case .provisional(let text):
-                    shared.lock.withLock { $0.provisionalText = text }
-                case .confirmed(let text):
-                    shared.lock.withLock { $0.confirmedText = text }
-                case .displayUpdate(let confirmedText, let provisionalText):
-                    shared.lock.withLock {
-                        $0.confirmedText = confirmedText
-                        $0.provisionalText = provisionalText
-                    }
-                case .stats:
-                    break
-                case .ended(let fullText):
-                    shared.lock.withLock {
-                        $0.finalText = fullText
-                        $0.provisionalText = ""
-                    }
-                    shared.endedSignal.signal()
-                }
-            }
-        }
-    }
-
-    deinit {
-        // The server drops sessions on both `clear` and after `commit`. Stop the
-        // upstream session first: cancelling only our consumer would leave the
-        // decoder task, pending audio, and AsyncStream continuation running in
-        // the upstream core until its next stop (which never arrives).
-        session.cancel()
-        // Cancelling the consumer releases its capture of `session`, so the
-        // upstream session (and its continuation) deallocates with the adapter.
-        consumer.cancel()
+    init(model: Qwen3ASRModel) {
+        self.model = model
     }
 
     func step(_ samples: [Float]) -> SpeechStreamDelta {
-        session.feedAudio(samples: samples)
-        return consumeNewlyConfirmed()
+        guard !didFinish else { return SpeechStreamDelta(text: "", tokenIds: []) }
+        audioSamples.append(contentsOf: samples)
+        return SpeechStreamDelta(text: "", tokenIds: [])
     }
 
     func finish() -> SpeechStreamDelta {
-        session.stop()
-        // stop() always terminates with `.ended`; wait for the consumer to record
-        // the final text (blocks only this queue thread, not the concurrency pool
-        // that runs the decode + consumer tasks).
-        if !hasEnded { shared.endedSignal.wait() }
-        return consumeNewlyConfirmed()
+        guard !didFinish else { return SpeechStreamDelta(text: "", tokenIds: []) }
+        didFinish = true
+        guard !audioSamples.isEmpty else { return SpeechStreamDelta(text: "", tokenIds: []) }
+        let output = model.generate(
+            audio: MLXArray(audioSamples),
+            generationParameters: STTGenerateParameters(
+                maxTokens: 8192,
+                temperature: 0.0,
+                language: "English"
+            )
+        )
+        finalText = output.text
+        audioSamples.removeAll(keepingCapacity: false)
+        return SpeechStreamDelta(text: finalText, tokenIds: [])
     }
 
     /// Full stabilized transcript decoded so far (the final full text once
     /// finished). The server emits append-only deltas against this snapshot.
     var text: String {
-        shared.lock.withLock { snapshot in
-            snapshot.finalText ?? snapshot.confirmedText
-        }
-    }
-
-    private var hasEnded: Bool {
-        shared.lock.withLock { $0.finalText != nil }
-    }
-
-    /// Returns the confirmed text that stabilized since the last step/finish, as
-    /// an append-only delta (confirmed text is monotonic prefix-growing).
-    private func consumeNewlyConfirmed() -> SpeechStreamDelta {
-        shared.lock.withLock { snapshot in
-            let full = snapshot.finalText ?? snapshot.confirmedText
-            var deltaText = ""
-            if full.hasPrefix(snapshot.emittedText) {
-                deltaText = String(full.dropFirst(snapshot.emittedText.count))
-            }
-            snapshot.emittedText = full
-            return SpeechStreamDelta(text: deltaText, tokenIds: [])
-        }
+        finalText
     }
 }
