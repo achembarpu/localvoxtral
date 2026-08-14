@@ -17,4 +17,15 @@ final class SpeechModelCatalogTests: XCTestCase {
         XCTAssertEqual(option.revision.count, 40)
         XCTAssertTrue(option.revision.allSatisfy(\.isHexDigit))
     }
+
+    func testGraniteCatalogUsesSpeech41NotRetiredSpeech40() {
+        guard let granite = SpeechModelCatalog.options.first(where: { $0.engine == .granite }) else {
+            return XCTFail("Granite Speech 4.1 must remain a managed experimental option.")
+        }
+
+        XCTAssertEqual(granite.repoID, "divydeep/granite-speech-4.1-2b-mlx-4bit")
+        XCTAssertEqual(granite.revision, "746628663cd779a680e64e0b3f0fb9b34740029d")
+        XCTAssertFalse(SpeechModelCatalog.options.contains { $0.repoID.contains("granite-speech-4.0") })
+    }
+
 }

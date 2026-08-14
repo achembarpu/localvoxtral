@@ -48,16 +48,12 @@ enum SpeechModelCatalog {
             displayName: "Nemotron 3.5 ASR Streaming 0.6B (fast)",
             engine: .nemotron
         ),
-        // IBM Granite 4.0 1B Speech (4-bit), EN/FR/DE/ES/PT/JA. Not a native
-        // streaming architecture: speechd drives it with the growing-window
-        // re-decode session (GraniteSpeechStreamSession) whose finish() is
-        // bit-identical to the offline decode, at ~300 ms window latency and
-        // O(buffer²) encode. ~2.0 GB on disk. WER (model card): see the
-        // mlx-community/granite-4.0-1b-speech repo. License: Apache 2.0.
+        // Granite 4.1 emits one exact offline transcript when dictation stops.
+        // Its model topology cannot produce correct append-only live deltas.
         SpeechModelOption(
-            repoID: "mlx-community/granite-4.0-1b-speech-4bit",
-            revision: "7e42cf86c0f595f0c38327eae7a90a8c11a17281",
-            displayName: "Granite 4.0 1B Speech (4-bit)",
+            repoID: "divydeep/granite-speech-4.1-2b-mlx-4bit",
+            revision: "746628663cd779a680e64e0b3f0fb9b34740029d",
+            displayName: "Granite Speech 4.1 2B (final on stop)",
             engine: .granite
         ),
     ]

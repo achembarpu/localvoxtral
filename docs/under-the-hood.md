@@ -25,7 +25,12 @@ supervises two inference engines for you — no terminal required:
   conversion of the mlx-community 4-bit snapshot that also quantizes the
   tied output head — cutting the decode loop's largest projection from
   ~30 ms to ~3 ms per token and saving ~530 MB of memory, at level
-  transcription quality.
+  transcription quality. The speech model catalog also carries experimental
+  **Nemotron 3.5 ASR Streaming 0.6B** (native chunked streaming) and
+  **Granite Speech 4.1 2B**. Neither is the managed default. Granite Speech
+  buffers a dictation and emits its exact transcript when recording stops;
+  it intentionally has no live partials because its offline architecture
+  cannot produce correct append-only updates.
 - **Polishing — `localvoxtral-polishd`**, a bundled Swift helper built on
   Apple's [MLX Swift](https://github.com/ml-explore/mlx-swift-lm), runs
   [Qwen3.5-4B-OptiQ in 4-bit](https://huggingface.co/mlx-community/Qwen3.5-4B-OptiQ-4bit)
