@@ -230,6 +230,11 @@ final class Qwen3ASRSession: SpeechASRStreamingSession, @unchecked Sendable {
     }
 
     deinit {
+        // The server drops sessions on both `clear` and after `commit`. Stop the
+        // upstream session first: cancelling only our consumer would leave the
+        // decoder task, pending audio, and AsyncStream continuation running in
+        // the upstream core until its next stop (which never arrives).
+        session.cancel()
         // Cancelling the consumer releases its capture of `session`, so the
         // upstream session (and its continuation) deallocates with the adapter.
         consumer.cancel()
