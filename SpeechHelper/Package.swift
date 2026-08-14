@@ -37,13 +37,13 @@ let package = Package(
         // 8ed8188 was upstream main at the merge of Blaizzy/mlx-audio-swift#232
         // (quantized-tied-embedding loader — required by the catalog's -qhead model,
         // SpeechModelCatalog). The pin now lives on the achembarpu fork: be2beeb is the
-        // Nemotron incremental-mel work, and c208e4c adds GraniteSpeechStreamSession
-        // (growing-window incremental streaming for the Granite Speech catalog entry).
+        // Nemotron incremental-mel work. Granite 4.1 is delivered final-only because
+        // its offline topology cannot safely revise app-visible append-only text.
         // When both land upstream, return to upstream main and drop the fork — see
         // DEPENDENCY.md.
         .package(
             url: "https://github.com/achembarpu/mlx-audio-swift.git",
-            revision: "bf957288e323310de5c2bb5df63c48b601db1d85"
+            revision: "1fde0de7669531de778441f079afded6283a630a"
         ),
     ],
     targets: [

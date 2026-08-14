@@ -1,5 +1,5 @@
 {
-  "originHash" : "c30fd078a378c750b6b117b33e75f31d236c352024b60892dec08b0ae954c41b",
+  "originHash" : "d22fab57a9d7bb5e146d95c96fc84ef6067829f9bb197caae7c094e83ebcb7c1",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -24,7 +24,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/achembarpu/mlx-audio-swift.git",
       "state" : {
-        "revision" : "bf957288e323310de5c2bb5df63c48b601db1d85"
+        "revision" : "1fde0de7669531de778441f079afded6283a630a"
       }
     },
     {

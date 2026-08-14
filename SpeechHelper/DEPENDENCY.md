@@ -36,26 +36,22 @@ merged #232 is a review-evolved variant of the fork commit (module-routed
 `embedToken`/`logits` instead of raw-weight access, plus upstream regression tests), so the
 switchback re-ran the live speechd integration lane rather than assuming equivalence.
 
-**This pin is on the `achembarpu/mlx-audio-swift` fork** (`c208e4c`, atop `be2beeb`, the merge
-of the `feat/nemotron-incremental-mel` branch): it equals upstream `8ed8188` plus
+**This pin is on the `achembarpu/mlx-audio-swift` fork** (`1fde0de`, atop `1ba4ddb`, `bf95728`, `c208e4c`,
+and `be2beeb`, the merge of the `feat/nemotron-incremental-mel` branch): it equals upstream
+`8ed8188` plus
 - `NemotronASRStreamSession`: incremental mel over a sliding window (per-step cost
   O(new frames) instead of O(whole buffer) — total O(buffer) for a dictation session
   instead of O(buffer²)); and an RNN-T prediction-network cache across consecutive
   unchanged frames (blank runs skip one LSTM forward per frame).
-- `GraniteSpeechStreamSession` (`Models/GraniteSpeech/`): incremental streaming for the
-  Granite Speech catalog entry. Granite Speech is not a streaming architecture
-  (utterance-global log-mel max, bidirectional conv right-edge, audio-tokens-before-prompt
-  layout), so the session is a growing-window re-decode: it re-runs the offline pipeline
-  (`GraniteSpeechModel.transcribeOffline`) every time a ~300 ms audio-token window completes
-  and de-duplicates by common prefix. `finish()` is bit-identical to the offline
-  `generate()`; intermediate steps are approximate — the file header documents the
-  exact/approximate split and the cache-aware-conformer follow-up.
+- `GraniteSpeechStreamSession` (`Models/GraniteSpeech/`): final-only delivery for
+  Granite Speech 4.1. Its utterance-global log-mel normalization, bidirectional
+  convolution right edge, and audio-tokens-before-prompt layout cannot produce correct
+  append-only deltas. The session buffers audio and executes the exact offline pipeline
+  once in `finish()`, avoiding the former O(buffer²) growing-window re-decode.
 
-The live speechd integration lane (`remote-build.sh integration-speechd`) is the gate that
-proves the incremental transcripts stay bit-identical to the offline encoder and that the
-faster path actually holds up on real audio. When the incremental-mel + Granite streaming
-work is merged upstream, the procedure below returns the pin to `Blaizzy/mlx-audio-swift`
-main.
+The live speechd integration lane (`remote-build.sh integration-speechd`) is the gate for
+model behavior on real audio. When these fork changes land upstream, the procedure below
+returns the pin to `Blaizzy/mlx-audio-swift` main.
 
 ## What #226 upstreamed
 
