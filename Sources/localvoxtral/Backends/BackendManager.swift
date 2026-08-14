@@ -552,6 +552,10 @@ final class BackendManager: ManagedBackendManaging {
         //   config.json + model*.safetensors + AutoTokenizer, which reads
         //   preprocessor_config.json / processor_config.json / added_tokens.json /
         //   special_tokens_map.json on top of tokenizer*.json.
+        // - mlx-audio-swift's Qwen3ASRModel.fromModelDirectory loader:
+        //   config.json, vocab.json + merges.txt (Qwen3-ASR checkpoints ship no
+        //   tokenizer.json — the loader synthesizes it from those two), plus
+        //   chat_template.json / preprocessor_config.json / generation_config.json.
         // - PolishHelper's loader (MLXLLM loadContainer + AutoTokenizer):
         //   config.json, generation_config.json, model*.safetensors,
         //   tokenizer.json/tokenizer_config.json, chat template *.jinja —
@@ -575,6 +579,11 @@ final class BackendManager: ManagedBackendManaging {
                     "processor_config.json",
                     "added_tokens.json",
                     "special_tokens_map.json",
+                    "vocab.json",
+                    "merges.txt",
+                    "chat_template.json",
+                    "preprocessor_config.json",
+                    "generation_config.json",
                     "model*.safetensors",
                     "model.safetensors.index.json",
                 ]

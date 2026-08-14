@@ -40,6 +40,22 @@ final class SpeechASREngineKindTests: XCTestCase {
             .granite
         )
         XCTAssertEqual(SpeechASREngineKind.infer(fromModelID: "some/other-asr"), .voxtral)
+    func testQwen3ASRModelMapsToQwen3ASREngine() {
+        XCTAssertEqual(
+            SpeechASREngineKind.infer(
+                fromModelID: "mlx-community/Qwen3-ASR-0.6B-8bit"
+            ),
+            .qwen3ASR
+        )
+        // Case-insensitive, and "qwen3-asr" anywhere in the id wins.
+        XCTAssertEqual(
+            SpeechASREngineKind.infer(fromModelID: "mlx-community/qwen3-asr-0.6b-8bit"),
+            .qwen3ASR
+        )
+        XCTAssertEqual(
+            SpeechASREngineKind.infer(fromModelID: "org/Qwen3-ASR-something"),
+            .qwen3ASR
+        )
     }
 
     func testDeltaIsEquatableForTestingTheAppendOnlyContract() {

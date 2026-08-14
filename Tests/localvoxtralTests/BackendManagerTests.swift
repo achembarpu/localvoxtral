@@ -63,6 +63,11 @@ final class BackendManagerTests: XCTestCase {
                 "processor_config.json",
                 "added_tokens.json",
                 "special_tokens_map.json",
+                "vocab.json",
+                "merges.txt",
+                "chat_template.json",
+                "preprocessor_config.json",
+                "generation_config.json",
                 "model*.safetensors",
                 "model.safetensors.index.json",
             ]

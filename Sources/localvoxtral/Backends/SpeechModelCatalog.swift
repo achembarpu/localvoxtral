@@ -7,6 +7,7 @@ enum SpeechEngineKind: String, Equatable, Sendable {
     case voxtral
     case nemotron
     case granite
+    case qwen3ASR
 }
 
 /// Models advertise their delivery behavior in catalog metadata rather than
@@ -70,6 +71,18 @@ enum SpeechModelCatalog {
             displayName: "Granite Speech 4.1 2B (revisable overlay)",
             engine: .granite,
             transcriptDeliveryCapabilities: [.appendOnly, .revisableSnapshot]
+        ),
+        // Qwen3-ASR 0.6B, 8-bit — native streaming decode (provisional tokens that
+        // stabilize into confirmed text after N agreeing passes + a promotion delay).
+        // Apache-2.0, ungated, ~1 GB on disk; its streaming session lives in the
+        // pinned mlx-audio-swift fork (StreamingInferenceSession).
+        SpeechModelOption(
+            repoID: "mlx-community/Qwen3-ASR-0.6B-8bit",
+            revision: "89e96d92ba34aca20b3e29fb10cc284097d1219f",
+            displayName: "Qwen3-ASR 0.6B (revisable overlay)",
+            engine: .qwen3ASR,
+            transcriptDeliveryCapabilities: [.appendOnly, .revisableSnapshot]
+        )
         ),
     ]
 

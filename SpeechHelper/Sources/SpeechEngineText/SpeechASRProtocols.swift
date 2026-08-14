@@ -51,10 +51,12 @@ public enum SpeechASREngineKind: String, Sendable {
     case voxtral
     case nemotron
     case granite
+    case qwen3ASR
 
     public static func infer(fromModelID id: String?) -> SpeechASREngineKind {
         guard let id else { return .voxtral }
         let lower = id.lowercased()
+        if lower.contains("qwen3-asr") { return .qwen3ASR }
         if lower.contains("nemotron") { return .nemotron }
         if lower.contains("granite") { return .granite }
         return .voxtral

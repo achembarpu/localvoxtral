@@ -376,6 +376,23 @@ enum SpeechModelLoader {
                 throw RealtimeSpeechServer.ServerError.noModelSpecified
             }
             return GraniteSpeechASREngine(model: model)
+        case .qwen3ASR:
+            let model: Qwen3ASRModel
+            if let dir = modelDirectory {
+                model = try await Qwen3ASRModel.fromModelDirectory(URL(fileURLWithPath: dir))
+            } else if let id = modelID, let revision = modelRevision {
+                let directory = try SpeechHFCacheModelLocator.locate(
+                    repoID: id,
+                    revision: revision,
+                    cacheRoot: SpeechHFCacheModelLocator.defaultCacheRoot()
+                )
+                model = try await Qwen3ASRModel.fromModelDirectory(directory)
+            } else if let id = modelID {
+                model = try await Qwen3ASRModel.fromPretrained(id)
+            } else {
+                throw RealtimeSpeechServer.ServerError.noModelSpecified
+            }
+            return Qwen3ASREngine(model: model)
         }
     }
 }
