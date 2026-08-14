@@ -49,10 +49,12 @@ Open **Settings** from the menu bar popover:
 - **General** — permission status for Microphone and Accessibility (with
   grant buttons), copy-final-segment toggle, and Re-run Setup
 - **Endpoints** — Dictation and Polishing each switch independently between
-  `Managed local` (a model picker for polishing, plus a status light) and
+  `Managed local` (catalog pickers for proved speech and polishing models,
+  plus status lights) and
   `External URL` (endpoint URL, model name, API key)
-- **Dictation** — the trigger (single modifier key with tap/hold gestures, or
-  per-mode keyboard shortcuts) and the menu-bar output mode
+- **Dictation** — the managed speech model and memory/latency controls, plus
+  the trigger (single modifier key with tap/hold gestures, or per-mode keyboard
+  shortcuts) and the menu-bar output mode
 - **Text Processing** — exact-match replacements, plus the LLM Polishing
   switch and its agent-dictation features (agent prompt profile, repo
   vocabulary, clipboard context, spoken clipboard paste, and Claude Code
