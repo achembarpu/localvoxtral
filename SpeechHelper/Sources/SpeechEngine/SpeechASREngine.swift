@@ -2,6 +2,7 @@ import Foundation
 import MLX
 import MLXAudioSTT
 import SpeechEngineText
+import Synchronization
 
 /// MLX-bound adapters between the upstream engines and the server's
 /// `SpeechASRStreamingSession` contract. The pure contract types live in
@@ -145,6 +146,13 @@ final class Qwen3ASREngine: SpeechASREngine, @unchecked Sendable {
     func makeSession(
         transcriptionDelayMs: Int?, transcriptDelivery: TranscriptDelivery
     ) -> SpeechASRStreamingSession {
+        if transcriptDelivery == .revisableSnapshot {
+            var config = StreamingConfig()
+            if let transcriptionDelayMs { config.delayPreset = .custom(ms: transcriptionDelayMs) }
+            return Qwen3ASRRevisableSession(
+                session: StreamingInferenceSession(model: model, config: config)
+            )
+        }
         // Qwen's native decoder emits provisional rewrites. The app's append-only
         // insertion contract cannot represent those rewrites, so buffer the
         // utterance and perform one exact decode at commit.
@@ -161,34 +169,30 @@ final class Qwen3ASREngine: SpeechASREngine, @unchecked Sendable {
 /// intentionally emits no partials; its transcript is produced on final commit.
 final class Qwen3ASRSession: SpeechASRStreamingSession, @unchecked Sendable {
     private let model: Qwen3ASRModel
-    private var audioSamples: [Float] = []
+    private var finalization = QwenASRFinalizationState()
     private var finalText = ""
-    private var didFinish = false
 
     init(model: Qwen3ASRModel) {
         self.model = model
     }
 
     func step(_ samples: [Float]) -> SpeechStreamDelta {
-        guard !didFinish else { return SpeechStreamDelta(text: "", tokenIds: []) }
-        audioSamples.append(contentsOf: samples)
+        finalization.append(samples)
         return SpeechStreamDelta(text: "", tokenIds: [])
     }
 
     func finish() -> SpeechStreamDelta {
-        guard !didFinish else { return SpeechStreamDelta(text: "", tokenIds: []) }
-        didFinish = true
+        let audioSamples = finalization.finish()
         guard !audioSamples.isEmpty else { return SpeechStreamDelta(text: "", tokenIds: []) }
         let output = model.generate(
             audio: MLXArray(audioSamples),
             generationParameters: STTGenerateParameters(
                 maxTokens: 8192,
                 temperature: 0.0,
-                language: "English"
+                language: QwenASRFinalizationState.decodeLanguage
             )
         )
         finalText = output.text
-        audioSamples.removeAll(keepingCapacity: false)
         return SpeechStreamDelta(text: finalText, tokenIds: [])
     }
 
@@ -196,5 +200,80 @@ final class Qwen3ASRSession: SpeechASRStreamingSession, @unchecked Sendable {
     /// finished). The server emits append-only deltas against this snapshot.
     var text: String {
         finalText
+    }
+}
+
+/// Adapter for clients that explicitly opt into full draft replacement. The
+/// server forwards `text` as an authoritative snapshot, never as an append-only
+/// delta, so Qwen's provisional revisions remain recoverable by the client.
+final class Qwen3ASRRevisableSession: SpeechASRStreamingSession, @unchecked Sendable {
+    private struct Snapshot {
+        var confirmed = ""
+        var provisional = ""
+        var finalText: String?
+
+        var text: String { finalText ?? confirmed + provisional }
+    }
+
+    private final class State: @unchecked Sendable {
+        let lock = Mutex(Snapshot())
+        let ended = DispatchSemaphore(value: 0)
+    }
+
+    private let session: StreamingInferenceSession
+    private let state = State()
+    private let consumer: Task<Void, Never>
+
+    init(session: StreamingInferenceSession) {
+        self.session = session
+        let state = self.state
+        self.consumer = Task { [session, state] in
+            for await event in session.events {
+                switch event {
+                case .provisional(let text):
+                    state.lock.withLock { $0.provisional = text }
+                case .confirmed(let text):
+                    state.lock.withLock { $0.confirmed = text; $0.provisional = "" }
+                case .displayUpdate(let confirmed, let provisional):
+                    state.lock.withLock {
+                        $0.confirmed = confirmed
+                        $0.provisional = provisional
+                    }
+                case .stats:
+                    break
+                case .ended(let text):
+                    state.lock.withLock { $0.finalText = text; $0.provisional = "" }
+                    state.ended.signal()
+                }
+            }
+        }
+    }
+
+    deinit {
+        session.cancel()
+        consumer.cancel()
+    }
+
+    func step(_ samples: [Float]) -> SpeechStreamDelta {
+        guard !isEnded else { return SpeechStreamDelta(text: sessionText, tokenIds: []) }
+        session.feedAudio(samples: samples)
+        return SpeechStreamDelta(text: sessionText, tokenIds: [])
+    }
+
+    func finish() -> SpeechStreamDelta {
+        guard !isEnded else { return SpeechStreamDelta(text: sessionText, tokenIds: []) }
+        session.stop()
+        if !isEnded { state.ended.wait() }
+        return SpeechStreamDelta(text: sessionText, tokenIds: [])
+    }
+
+    var text: String { sessionText }
+
+    private var isEnded: Bool {
+        state.lock.withLock { $0.finalText != nil }
+    }
+
+    private var sessionText: String {
+        state.lock.withLock { $0.text }
     }
 }

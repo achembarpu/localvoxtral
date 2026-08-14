@@ -21,7 +21,10 @@ public enum StreamingSpeechBenchmark {
             seconds: benchmark.seconds,
             wavPath: benchmark.wavPath
         )
-        let session = engine.makeSession(transcriptionDelayMs: options.transcriptionDelayMs)
+        let session = engine.makeSession(
+            transcriptionDelayMs: options.transcriptionDelayMs,
+            delivery: .appendOnly
+        )
         var batcher = StepBatcher(
             cadenceMilliseconds: benchmark.cadenceMilliseconds,
             sampleRate: sampleRate
