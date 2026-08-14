@@ -3,7 +3,7 @@ import XCTest
 @testable import localvoxtral
 
 final class PolishModelCatalogTests: XCTestCase {
-    func testCatalogLookupAndDefaultOption() {
+    func testCatalogLookupAndDefaultOption() throws {
         let defaultOption = PolishModelCatalog.defaultOption
 
         // Owner decision 2026-07-11: the 4B is the default for ALL users.
@@ -20,6 +20,14 @@ final class PolishModelCatalogTests: XCTestCase {
                 forRepoID: "mlx-community/Qwen3.5-0.8B-8bit"
             )?.chatTemplateArguments
         )
+
+        let granite = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/granite-4.1-3b-mxfp4")
+        )
+        XCTAssertEqual(granite.revision, "32bd0e4d82922d0eb4e0d56b22fb8fad368a529a")
+        XCTAssertEqual(granite.displayName, "Granite 4.1 3B (experimental)")
+        XCTAssertNil(granite.chatTemplateArguments)
+        XCTAssertNotEqual(granite, defaultOption)
     }
 
     /// Every catalog model names an exact commit. A bare repo id tracks main,

@@ -103,6 +103,19 @@ enum PolishModelCatalog {
             chatTemplateArguments: ["enable_thinking": false],
             summary: "For 32 GB+ Macs"
         ),
+        PolishModelOption(
+            repoID: "mlx-community/granite-4.1-3b-mxfp4",
+            // HF API revision checked 2026-08-14. Keep this experimental
+            // Granite 4.1 option pinned: the conversion is community
+            // produced and must not silently change underneath an install.
+            revision: "32bd0e4d82922d0eb4e0d56b22fb8fad368a529a",
+            displayName: "Granite 4.1 3B (experimental)",
+            sizeOnDiskGB: 1.8,
+            estimatedRAMGB: 2.2,
+            samplingDefaults: nil,
+            chatTemplateArguments: nil,
+            summary: "Compact Granite 4.1 4-bit model; experimental polish option"
+        ),
     ]
 
     /// Owner decision 2026-07-11: the 4B is the default for ALL users (14/14
