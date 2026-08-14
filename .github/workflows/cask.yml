@@ -7,10 +7,10 @@ name: Cask
 
 on:
   pull_request:
-    paths: [Casks/**, scripts/update-cask.sh]
+    paths: [Casks/**, scripts/update-cask.sh, .github/workflows/cask.yml]
   push:
     branches: [main]
-    paths: [Casks/**, scripts/update-cask.sh]
+    paths: [Casks/**, scripts/update-cask.sh, .github/workflows/cask.yml]
 
 jobs:
   validate:
