@@ -27,6 +27,21 @@ final class SpeechASREngineKindTests: XCTestCase {
         XCTAssertEqual(SpeechASREngineKind.infer(fromModelID: "some/other-asr"), .voxtral)
     }
 
+    func testGraniteModelMapsToGraniteEngine() {
+        XCTAssertEqual(
+            SpeechASREngineKind.infer(
+                fromModelID: "mlx-community/granite-4.0-1b-speech-4bit"
+            ),
+            .granite
+        )
+        // Case-insensitive, like the Nemotron mapping.
+        XCTAssertEqual(
+            SpeechASREngineKind.infer(fromModelID: "mlx-community/Granite-4.0-1B-Speech"),
+            .granite
+        )
+        XCTAssertEqual(SpeechASREngineKind.infer(fromModelID: "some/other-asr"), .voxtral)
+    }
+
     func testDeltaIsEquatableForTestingTheAppendOnlyContract() {
         XCTAssertEqual(
             SpeechStreamDelta(text: "hello", tokenIds: [1, 2]),

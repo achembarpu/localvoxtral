@@ -505,6 +505,10 @@ final class BackendManager: ManagedBackendManaging {
         // - mlx-audio-swift's VoxtralRealtimeModel.fromDirectory loader:
         //   config.json, every model*.safetensors file, and tekken.json.
         //   The index is included so sharded revisions remain complete.
+        // - mlx-audio-swift's GraniteSpeechModel.fromModelDirectory loader:
+        //   config.json + model*.safetensors + AutoTokenizer, which reads
+        //   preprocessor_config.json / processor_config.json / added_tokens.json /
+        //   special_tokens_map.json on top of tokenizer*.json.
         // - PolishHelper's loader (MLXLLM loadContainer + AutoTokenizer):
         //   config.json, generation_config.json, model*.safetensors,
         //   tokenizer.json/tokenizer_config.json, chat template *.jinja —
@@ -524,6 +528,10 @@ final class BackendManager: ManagedBackendManaging {
                     "tokenizer*.json",
                     "tokenizer.model",
                     "vocab.txt",
+                    "preprocessor_config.json",
+                    "processor_config.json",
+                    "added_tokens.json",
+                    "special_tokens_map.json",
                     "model*.safetensors",
                     "model.safetensors.index.json",
                 ]

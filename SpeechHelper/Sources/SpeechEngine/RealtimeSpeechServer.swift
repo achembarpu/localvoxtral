@@ -340,6 +340,23 @@ enum SpeechModelLoader {
                 throw RealtimeSpeechServer.ServerError.noModelSpecified
             }
             return NemotronASREngine(model: model)
+        case .granite:
+            let model: GraniteSpeechModel
+            if let dir = modelDirectory {
+                model = try await GraniteSpeechModel.fromModelDirectory(URL(fileURLWithPath: dir))
+            } else if let id = modelID, let revision = modelRevision {
+                let directory = try SpeechHFCacheModelLocator.locate(
+                    repoID: id,
+                    revision: revision,
+                    cacheRoot: SpeechHFCacheModelLocator.defaultCacheRoot()
+                )
+                model = try await GraniteSpeechModel.fromModelDirectory(directory)
+            } else if let id = modelID {
+                model = try await GraniteSpeechModel.fromPretrained(id)
+            } else {
+                throw RealtimeSpeechServer.ServerError.noModelSpecified
+            }
+            return GraniteSpeechASREngine(model: model)
         }
     }
 }

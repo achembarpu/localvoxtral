@@ -86,3 +86,40 @@ final class NemotronASRSession: SpeechASRStreamingSession, @unchecked Sendable {
 
     var text: String { session.text }
 }
+
+// MARK: - Granite (streaming via growing-window re-decode)
+
+final class GraniteSpeechASREngine: SpeechASREngine, @unchecked Sendable {
+    private let model: GraniteSpeechModel
+
+    init(model: GraniteSpeechModel) {
+        self.model = model
+    }
+
+    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+        // Granite's growing-window session re-decodes at the model's fixed
+        // window_size=15 (~300 ms) cadence; there is no chunk ladder to map
+        // transcriptionDelayMs onto, so the knob is ignored.
+        GraniteSpeechASRSession(session: model.makeStreamSession())
+    }
+}
+
+final class GraniteSpeechASRSession: SpeechASRStreamingSession, @unchecked Sendable {
+    private let session: GraniteSpeechStreamSession
+
+    init(session: GraniteSpeechStreamSession) {
+        self.session = session
+    }
+
+    func step(_ samples: [Float]) -> SpeechStreamDelta {
+        let d = session.step(samples)
+        return SpeechStreamDelta(text: d.text, tokenIds: d.tokenIds)
+    }
+
+    func finish() -> SpeechStreamDelta {
+        let d = session.finish()
+        return SpeechStreamDelta(text: d.text, tokenIds: d.tokenIds)
+    }
+
+    var text: String { session.text }
+}

@@ -59,6 +59,10 @@ final class BackendManagerTests: XCTestCase {
                 "tokenizer*.json",
                 "tokenizer.model",
                 "vocab.txt",
+                "preprocessor_config.json",
+                "processor_config.json",
+                "added_tokens.json",
+                "special_tokens_map.json",
                 "model*.safetensors",
                 "model.safetensors.index.json",
             ]

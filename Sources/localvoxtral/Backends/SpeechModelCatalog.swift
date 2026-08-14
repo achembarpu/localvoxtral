@@ -6,6 +6,7 @@ import Foundation
 enum SpeechEngineKind: String, Equatable, Sendable {
     case voxtral
     case nemotron
+    case granite
 }
 
 struct SpeechModelOption: Equatable, Sendable {
@@ -46,6 +47,18 @@ enum SpeechModelCatalog {
             revision: "7279359e4481b5e9e185a318bd618e429c6d86cd",
             displayName: "Nemotron 3.5 ASR Streaming 0.6B (fast)",
             engine: .nemotron
+        ),
+        // IBM Granite 4.0 1B Speech (4-bit), EN/FR/DE/ES/PT/JA. Not a native
+        // streaming architecture: speechd drives it with the growing-window
+        // re-decode session (GraniteSpeechStreamSession) whose finish() is
+        // bit-identical to the offline decode, at ~300 ms window latency and
+        // O(buffer²) encode. ~2.0 GB on disk. WER (model card): see the
+        // mlx-community/granite-4.0-1b-speech repo. License: Apache 2.0.
+        SpeechModelOption(
+            repoID: "mlx-community/granite-4.0-1b-speech-4bit",
+            revision: "7e42cf86c0f595f0c38327eae7a90a8c11a17281",
+            displayName: "Granite 4.0 1B Speech (4-bit)",
+            engine: .granite
         ),
     ]
 
