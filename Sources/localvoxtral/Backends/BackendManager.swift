@@ -522,6 +522,8 @@ final class BackendManager: ManagedBackendManaging {
                     "config.json",
                     "tekken.json",
                     "tokenizer*.json",
+                    "tokenizer.model",
+                    "vocab.txt",
                     "model*.safetensors",
                     "model.safetensors.index.json",
                 ]

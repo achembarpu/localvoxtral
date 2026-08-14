@@ -1,0 +1,88 @@
+import Foundation
+import MLXAudioSTT
+import SpeechEngineText
+
+/// MLX-bound adapters between the upstream engines and the server's
+/// `SpeechASRStreamingSession` contract. The pure contract types live in
+/// SpeechEngineText so the tier-0 lane can test them Metal-free.
+
+// MARK: - Voxtral (default engine)
+
+final class VoxtralASREngine: SpeechASREngine, @unchecked Sendable {
+    private let model: VoxtralRealtimeModel
+
+    init(model: VoxtralRealtimeModel) {
+        self.model = model
+    }
+
+    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+        VoxtralASRSession(
+            session: model.makeStreamSession(
+                temperature: 0.0,
+                transcriptionDelayMs: transcriptionDelayMs
+            )
+        )
+    }
+}
+
+final class VoxtralASRSession: SpeechASRStreamingSession, @unchecked Sendable {
+    private let session: VoxtralRealtimeStreamSession
+
+    init(session: VoxtralRealtimeStreamSession) {
+        self.session = session
+    }
+
+    func step(_ samples: [Float]) -> SpeechStreamDelta {
+        let d = session.step(samples)
+        return SpeechStreamDelta(text: d.text, tokenIds: d.tokenIds)
+    }
+
+    func finish() -> SpeechStreamDelta {
+        let d = session.finish()
+        return SpeechStreamDelta(text: d.text, tokenIds: d.tokenIds)
+    }
+
+    var text: String { session.text }
+}
+
+// MARK: - Nemotron (fast / low-RAM streaming engine)
+
+final class NemotronASREngine: SpeechASREngine, @unchecked Sendable {
+    private let model: NemotronASRModel
+
+    init(model: NemotronASRModel) {
+        self.model = model
+    }
+
+    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+        // Nemotron's chunk size is its latency ladder (80/160/320/560/1120 ms).
+        // transcriptionDelayMs is the app's configured latency point; pass it
+        // through so the "fast" engine honors the same knob.
+        NemotronASRSession(
+            session: model.makeStreamSession(
+                language: nil,
+                chunkMs: transcriptionDelayMs
+            )
+        )
+    }
+}
+
+final class NemotronASRSession: SpeechASRStreamingSession, @unchecked Sendable {
+    private let session: NemotronASRStreamSession
+
+    init(session: NemotronASRStreamSession) {
+        self.session = session
+    }
+
+    func step(_ samples: [Float]) -> SpeechStreamDelta {
+        let d = session.step(samples)
+        return SpeechStreamDelta(text: d.text, tokenIds: d.tokenIds)
+    }
+
+    func finish() -> SpeechStreamDelta {
+        let d = session.finish()
+        return SpeechStreamDelta(text: d.text, tokenIds: d.tokenIds)
+    }
+
+    var text: String { session.text }
+}

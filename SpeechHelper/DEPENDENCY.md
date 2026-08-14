@@ -16,15 +16,15 @@ checkout — we no longer keep a copy here.
 
 ```
 .package(
-    url: "https://github.com/Blaizzy/mlx-audio-swift.git",
-    revision: "8ed8188bf862062d2c6f4c6ecefbfed301f615a0"
+    url: "https://github.com/achembarpu/mlx-audio-swift.git",
+    revision: "be2beeb66402f621ff97697fc58dac515a6dac94"
 )
 ```
 
 Pinned to a full-SHA **revision**, not a tag, so the exact reviewed tree is reproducible and
 can't move under us.
 
-`8ed8188` is upstream main at the merge of
+`8ed8188` was upstream main at the merge of
 [Blaizzy/mlx-audio-swift#232](https://github.com/Blaizzy/mlx-audio-swift/pull/232): the
 quantized-tied-embedding loader fix, required to load the catalog-pinned `-qhead` checkpoint
 (4-bit/g64-quantized tied embedding/LM head — see `SpeechModelCatalog.swift`); without it the
@@ -35,6 +35,18 @@ incremental mel/conv front end, #231: hoisted attention invariants, #232 above).
 merged #232 is a review-evolved variant of the fork commit (module-routed
 `embedToken`/`logits` instead of raw-weight access, plus upstream regression tests), so the
 switchback re-ran the live speechd integration lane rather than assuming equivalence.
+
+**This pin is on the `achembarpu/mlx-audio-swift` fork** (`be2beeb`, the merge of the
+`feat/nemotron-incremental-mel` branch): it equals upstream `8ed8188` plus
+- `NemotronASRStreamSession`: incremental mel over a sliding window (per-step cost
+  O(new frames) instead of O(whole buffer) — total O(buffer) for a dictation session
+  instead of O(buffer²)); and an RNN-T prediction-network cache across consecutive
+  unchanged frames (blank runs skip one LSTM forward per frame).
+
+The live speechd integration lane (`remote-build.sh integration-speechd`) is the gate that
+proves the incremental-mel transcripts stay bit-identical to the offline encoder and that the
+faster path actually holds up on real audio. When the incremental-mel work is merged
+upstream, the procedure below returns the pin to `Blaizzy/mlx-audio-swift` main.
 
 ## What #226 upstreamed
 

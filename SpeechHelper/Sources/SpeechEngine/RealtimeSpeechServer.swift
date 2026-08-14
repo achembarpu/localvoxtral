@@ -7,14 +7,14 @@ import Synchronization
 
 /// Loopback OpenAI-Realtime-compatible ASR server: a drop-in for the Python `voxmlx`
 /// process. Serves `GET /health` (the supervisor's readiness probe) and a WebSocket
-/// `/v1/realtime` on the same port, driving a `VoxtralRealtimeStreamSession` per connection.
+/// `/v1/realtime` on the same port, driving a `SpeechASRStreamingSession` per connection.
 ///
 /// All model/session access is confined to one serial queue — MLX inference is not
 /// concurrency-safe, and dictation uses one connection at a time anyway. The Network
 /// callbacks (also serialized per connection) only parse bytes and hand decoded messages to
 /// that queue in order.
 public final class RealtimeSpeechServer: @unchecked Sendable {
-    private let model: VoxtralRealtimeModel
+    private let engine: SpeechASREngine
     private let transcriptionDelayMs: Int?
     private let stepMilliseconds: Int
     private let listener: NWListener
@@ -25,9 +25,10 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
     /// `{ exit(1) }` so a dead port gets the process restarted (mirrors PolishHelper).
     public var onListenerFailure: (@Sendable (Error) -> Void)?
 
-    /// Load the Voxtral model and build a server ready to `start()`. Public entry point for the
-    /// executable target, which cannot see the (module-internal) model type. Sets the MLX GPU
-    /// cache limit and loads from an HF id or a local directory.
+    /// Load the model and build a server ready to `start()`. Public entry point for the
+    /// executable target, which cannot see the (module-internal) model types. Sets the MLX
+    /// GPU cache limit and loads from an HF id or a local directory. The engine is inferred
+    /// from `modelID` (see `SpeechASREngineKind.infer`).
     public static func load(
         modelID: String?,
         modelRevision: String?,
@@ -38,13 +39,13 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
         stepMilliseconds: Int = 100
     ) async throws -> RealtimeSpeechServer {
         Memory.cacheLimit = cacheLimitMB * 1024 * 1024
-        let model = try await SpeechModelLoader.load(
+        let engine = try await SpeechModelLoader.load(
             modelID: modelID,
             modelRevision: modelRevision,
             modelDirectory: modelDirectory
         )
         return try RealtimeSpeechServer(
-            model: model,
+            engine: engine,
             port: port,
             transcriptionDelayMs: transcriptionDelayMs,
             stepMilliseconds: stepMilliseconds
@@ -54,12 +55,12 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
     public enum ServerError: Error { case noModelSpecified }
 
     init(
-        model: VoxtralRealtimeModel,
+        engine: SpeechASREngine,
         port: UInt16,
         transcriptionDelayMs: Int?,
         stepMilliseconds: Int
     ) throws {
-        self.model = model
+        self.engine = engine
         self.transcriptionDelayMs = transcriptionDelayMs
         self.stepMilliseconds = stepMilliseconds
         let parameters = NWParameters.tcp
@@ -121,7 +122,7 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
     private final class Connection: @unchecked Sendable {
         var phase: Phase = .http
         var buffer = Data()
-        var session: VoxtralRealtimeStreamSession?
+        var session: SpeechASRStreamingSession?
         var stepBatcher: StepBatcher
         // Append-only delta contract lives in OUR layer now (the engine is an upstream
         // dependency whose raw `Delta` re-emits the whole transcript on a non-prefix step).
@@ -277,9 +278,9 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
     }
 
     /// Must be called on `inferenceQueue`.
-    private func ensureSession(_ ctx: Connection) -> VoxtralRealtimeStreamSession {
+    private func ensureSession(_ ctx: Connection) -> SpeechASRStreamingSession {
         if let s = ctx.session { return s }
-        let s = model.makeStreamSession(temperature: 0.0, transcriptionDelayMs: transcriptionDelayMs)
+        let s = engine.makeSession(transcriptionDelayMs: transcriptionDelayMs)
         ctx.session = s
         return s
     }
@@ -303,21 +304,42 @@ enum SpeechModelLoader {
         modelID: String?,
         modelRevision: String?,
         modelDirectory: String?
-    ) async throws -> VoxtralRealtimeModel {
-        if let dir = modelDirectory {
-            return try VoxtralRealtimeModel.fromDirectory(URL(fileURLWithPath: dir))
+    ) async throws -> SpeechASREngine {
+        switch SpeechASREngineKind.infer(fromModelID: modelID) {
+        case .voxtral:
+            let model: VoxtralRealtimeModel
+            if let dir = modelDirectory {
+                model = try VoxtralRealtimeModel.fromDirectory(URL(fileURLWithPath: dir))
+            } else if let id = modelID, let revision = modelRevision {
+                let directory = try SpeechHFCacheModelLocator.locate(
+                    repoID: id,
+                    revision: revision,
+                    cacheRoot: SpeechHFCacheModelLocator.defaultCacheRoot()
+                )
+                model = try VoxtralRealtimeModel.fromDirectory(directory)
+            } else if let id = modelID {
+                model = try await VoxtralRealtimeModel.fromPretrained(id)
+            } else {
+                throw RealtimeSpeechServer.ServerError.noModelSpecified
+            }
+            return VoxtralASREngine(model: model)
+        case .nemotron:
+            let model: NemotronASRModel
+            if let dir = modelDirectory {
+                model = try NemotronASRModel.fromDirectory(URL(fileURLWithPath: dir))
+            } else if let id = modelID, let revision = modelRevision {
+                let directory = try SpeechHFCacheModelLocator.locate(
+                    repoID: id,
+                    revision: revision,
+                    cacheRoot: SpeechHFCacheModelLocator.defaultCacheRoot()
+                )
+                model = try NemotronASRModel.fromDirectory(directory)
+            } else if let id = modelID {
+                model = try await NemotronASRModel.fromPretrained(id)
+            } else {
+                throw RealtimeSpeechServer.ServerError.noModelSpecified
+            }
+            return NemotronASREngine(model: model)
         }
-        if let id = modelID, let revision = modelRevision {
-            let directory = try SpeechHFCacheModelLocator.locate(
-                repoID: id,
-                revision: revision,
-                cacheRoot: SpeechHFCacheModelLocator.defaultCacheRoot()
-            )
-            return try VoxtralRealtimeModel.fromDirectory(directory)
-        }
-        if let id = modelID {
-            return try await VoxtralRealtimeModel.fromPretrained(id)
-        }
-        throw RealtimeSpeechServer.ServerError.noModelSpecified
     }
 }

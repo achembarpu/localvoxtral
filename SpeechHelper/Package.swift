@@ -34,13 +34,15 @@ let package = Package(
         // #226). Pinned to a full-SHA revision, not a tag, so the exact reviewed tree is
         // reproducible — see DEPENDENCY.md for the upgrade procedure.
         //
-        // 8ed8188 is the merge of Blaizzy/mlx-audio-swift#232 (quantized-tied-embedding
-        // loader — required by the catalog's -qhead model, SpeechModelCatalog); with it
-        // upstream main carries everything the temporary T0mSIlver fork pin held, so the
-        // pin is back on upstream.
+        // 8ed8188 was upstream main at the merge of Blaizzy/mlx-audio-swift#232
+        // (quantized-tied-embedding loader — required by the catalog's -qhead model,
+        // SpeechModelCatalog). The pin now lives on the achembarpu fork at the merge of
+        // the Nemotron incremental-mel work (be2beeb): it carries the upstream base plus
+        // the streaming optimizations SpeechEngine's Nemotron engine needs. When those
+        // land upstream, return to upstream main and drop the fork — see DEPENDENCY.md.
         .package(
-            url: "https://github.com/Blaizzy/mlx-audio-swift.git",
-            revision: "8ed8188bf862062d2c6f4c6ecefbfed301f615a0"
+            url: "https://github.com/achembarpu/mlx-audio-swift.git",
+            revision: "be2beeb66402f621ff97697fc58dac515a6dac94"
         ),
     ],
     targets: [

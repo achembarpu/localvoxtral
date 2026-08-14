@@ -12,7 +12,7 @@ public enum StreamingSpeechBenchmark {
         guard let benchmark = options.benchmark else { return }
 
         Memory.cacheLimit = options.cacheLimitMB * 1024 * 1024
-        let model = try await SpeechModelLoader.load(
+        let engine = try await SpeechModelLoader.load(
             modelID: options.modelID,
             modelRevision: options.modelRevision,
             modelDirectory: options.modelDirectory
@@ -21,10 +21,7 @@ public enum StreamingSpeechBenchmark {
             seconds: benchmark.seconds,
             wavPath: benchmark.wavPath
         )
-        let session = model.makeStreamSession(
-            temperature: 0.0,
-            transcriptionDelayMs: options.transcriptionDelayMs
-        )
+        let session = engine.makeSession(transcriptionDelayMs: options.transcriptionDelayMs)
         var batcher = StepBatcher(
             cadenceMilliseconds: benchmark.cadenceMilliseconds,
             sampleRate: sampleRate
@@ -83,7 +80,7 @@ public enum StreamingSpeechBenchmark {
     }
 
     private static func measureStep(
-        session: VoxtralRealtimeStreamSession,
+        session: SpeechASRStreamingSession,
         samples: [Float],
         at audioSamples: Int
     ) -> StepRecord {
