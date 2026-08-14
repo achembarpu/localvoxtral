@@ -98,6 +98,7 @@ final class BackendManager: ManagedBackendManaging {
     @ObservationIgnored private let speechdCacheLimitProvider: SpeechdCacheLimitProvider
     @ObservationIgnored private let speechdStepCadenceProvider: SpeechdStepCadenceProvider
     @ObservationIgnored private var speechdSupervisor: (any ManagedBackendSupervising)?
+    @ObservationIgnored private var speechdLaunchedModel: SpeechModelOption?
     @ObservationIgnored private var polishdSupervisor: (any ManagedBackendSupervising)?
     // Per-backend single-flight slots. A global shared slot (the previous
     // design) let a lingering dictation run swallow a polishing request whose
@@ -138,6 +139,7 @@ final class BackendManager: ManagedBackendManaging {
         self.supervisorFactory = supervisorFactory
         self.speechdStatus = .stopped
         self.polishdStatus = .stopped
+        self.speechdLaunchedModel = nil
     }
 
     var statusUpdates: AsyncStream<ManagedBackendStatusUpdate> {
@@ -231,6 +233,7 @@ final class BackendManager: ManagedBackendManaging {
         // 2026-07-17: changing the memory limit and toggling Managed →
         // External → Managed silently kept the old argv.
         speechdSupervisor = nil
+        speechdLaunchedModel = nil
         polishdSupervisor = nil
         speechdStateMirrorTask?.cancel()
         speechdStateMirrorTask = nil
@@ -247,15 +250,20 @@ final class BackendManager: ManagedBackendManaging {
     func stopDictation() async {
         let cancelledEnsure = await cancelEnsureTaskAndAwaitCompletion(for: BackendCatalog.speechd)
         let hadSupervisor = speechdSupervisor != nil
+        await stopSpeechdSupervisorAndClear()
+        if cancelledEnsure || hadSupervisor {
+            setStatus(.stopped, for: BackendCatalog.speechd)
+        }
+    }
+
+    private func stopSpeechdSupervisorAndClear() async {
         await speechdSupervisor?.stop()
         // See stopAll(): drop the supervisor so the next ensure rebuilds the
         // launch arguments from the current settings providers.
         speechdSupervisor = nil
+        speechdLaunchedModel = nil
         speechdStateMirrorTask?.cancel()
         speechdStateMirrorTask = nil
-        if cancelledEnsure || hadSupervisor {
-            setStatus(.stopped, for: BackendCatalog.speechd)
-        }
     }
 
     func stopPolishing() async {
@@ -314,17 +322,24 @@ final class BackendManager: ManagedBackendManaging {
     }
 
     private func ensureReady(_ spec: ManagedBackendSpec) async throws {
+        let speechModel = spec.id == BackendCatalog.speechd.id
+            ? speechModelProvider()
+            : nil
         if isReady(spec) {
-            setStatus(.ready, for: spec)
-            return
+            if spec.id != BackendCatalog.speechd.id || speechdLaunchedModel == speechModel {
+                setStatus(.ready, for: spec)
+                return
+            }
+            // Settings may have changed while the previous process was still
+            // running. Do not let a new client attach to that stale model.
+            // We are inside the dictation single-flight task, so calling the
+            // public stopDictation() here would cancel and await this task.
+            await stopSpeechdSupervisorAndClear()
         }
 
         // Snapshot the catalog entry once. Selection can change while a model
         // downloads; the exact same repo/revision must reach both downloader
         // and helper argv for one launch.
-        let speechModel = spec.id == BackendCatalog.speechd.id
-            ? speechModelProvider()
-            : nil
         try await prepareModel(for: spec, speechModel: speechModel)
         try Task.checkCancellation()
 
@@ -433,6 +448,7 @@ final class BackendManager: ManagedBackendManaging {
             }
             let supervisor = supervisorFactory(configuration(for: spec, speechModel: speechModel))
             speechdSupervisor = supervisor
+            speechdLaunchedModel = speechModel
             startStateMirrorIfNeeded(supervisor: supervisor, spec: spec)
             return supervisor
         case BackendCatalog.polishd.id:

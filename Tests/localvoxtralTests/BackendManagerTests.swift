@@ -106,6 +106,32 @@ final class BackendManagerTests: XCTestCase {
         XCTAssertEqual(configuration.arguments[revisionIndex + 1], selected.revision)
     }
 
+    func testEnsureReadyRestartsSpeechdWhenCatalogSelectionChanges() async throws {
+        let modelPreparer = FakeModelPreparer()
+        let supervisorFactory = FakeSupervisorFactory()
+        let first = SpeechModelCatalog.defaultOption
+        let second = try XCTUnwrap(
+            SpeechModelCatalog.option(forRepoID: "mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit")
+        )
+        supervisorFactory.statesByName[BackendCatalog.speechd.displayName] = [.running]
+        let selected = SpeechModelOptionBox(first)
+        let manager = makeManager(
+            modelPreparer: modelPreparer,
+            speechModelProvider: { selected.value },
+            supervisorFactory: supervisorFactory
+        )
+
+        try await manager.ensureReady(dictation: true, polishing: false)
+        selected.value = second
+        try await manager.ensureReady(dictation: true, polishing: false)
+
+        XCTAssertEqual(modelPreparer.prepareCalls.map(\.repoID), [first.repoID, second.repoID])
+        XCTAssertEqual(supervisorFactory.createdConfigurations.count, 2)
+        let secondArguments = supervisorFactory.createdConfigurations[1].arguments
+        let modelIndex = try XCTUnwrap(secondArguments.firstIndex(of: "--model"))
+        XCTAssertEqual(secondArguments[modelIndex + 1], second.repoID)
+    }
+
     func testSpeechdCacheLimitAutoOmitsFlagAndPresetsAppendMegabytes() async throws {
         let option = SpeechModelCatalog.defaultOption
         let baseArguments = [
@@ -845,6 +871,15 @@ final class BackendManagerTests: XCTestCase {
 /// `var` still trips the sendable-capture warning — box it instead.
 private final class ProvidedValueBox: @unchecked Sendable {
     var value: Int?
+}
+
+@MainActor
+private final class SpeechModelOptionBox {
+    var value: SpeechModelOption
+
+    init(_ value: SpeechModelOption) {
+        self.value = value
+    }
 }
 
 private struct FixedLegacyPortDefense: LegacyVoxmlxPortDefending {
