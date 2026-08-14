@@ -43,7 +43,7 @@ let package = Package(
         // DEPENDENCY.md.
         .package(
             url: "https://github.com/achembarpu/mlx-audio-swift.git",
-            revision: "c208e4c9eafa1151cfcfc2ac660a1099b3f45444"
+            revision: "bf957288e323310de5c2bb5df63c48b601db1d85"
         ),
     ],
     targets: [
