@@ -43,7 +43,7 @@ let package = Package(
         // return to upstream main and drop the fork — see DEPENDENCY.md.
         .package(
             url: "https://github.com/achembarpu/mlx-audio-swift.git",
-            revision: "abcdf154c14a7c3ed8cf9725383f14e0ac1fd999"
+            revision: "a6d536221f32651efd0fbe3722e7501a3e8e6b12"
         ),
     ],
     targets: [
