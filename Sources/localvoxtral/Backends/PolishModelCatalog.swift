@@ -60,6 +60,26 @@ enum PolishModelCatalog {
             summary: "Lightest option, for constrained Macs"
         ),
         PolishModelOption(
+            repoID: "mlx-community/Qwen3.5-0.8B-OptiQ-4bit",
+            revision: "ef60586933bd2cc02b763f77eb8839a5114bbec1",
+            displayName: "Qwen3.5 0.8B OptiQ (lowest RAM)",
+            sizeOnDiskGB: 0.7,
+            estimatedRAMGB: 0.9,
+            samplingDefaults: nil,
+            chatTemplateArguments: ["enable_thinking": false],
+            summary: "Smallest footprint; OptiQ-4bit of the 0.8B"
+        ),
+        PolishModelOption(
+            repoID: "mlx-community/Qwen3.5-2B-OptiQ-4bit",
+            revision: "adc8669eb431e3168aeb4e320bd7b757914350e2",
+            displayName: "Qwen3.5 2B OptiQ (fast)",
+            sizeOnDiskGB: 1.6,
+            estimatedRAMGB: 1.9,
+            samplingDefaults: nil,
+            chatTemplateArguments: ["enable_thinking": false],
+            summary: "~2x the 4B's speed, roughly half its memory"
+        ),
+        PolishModelOption(
             repoID: "mlx-community/Qwen3.5-4B-OptiQ-4bit",
             // Last revision whose index maps every weight into
             // model.safetensors; the next one (6cb5bdf) added the vision
