@@ -132,6 +132,12 @@ final class RealtimeServerCodecTests: XCTestCase {
         XCTAssertEqual(message, .sessionUpdate(delivery: .revisableSnapshot))
     }
 
+    func testUnknownTranscriptDeliveryFallsBackToAppendOnly() throws {
+        let message = try RealtimeClientMessage.parse(
+            Data(#"{"type":"session.update","transcript_delivery":"future_delivery"}"#.utf8))
+        XCTAssertEqual(message, .sessionUpdate(delivery: .appendOnly))
+    }
+
     func testSnapshotMessageCarriesMonotonicSequenceAndFinality() throws {
         let json = RealtimeServerMessage.transcriptSnapshot(
             text: "I went to the store", sequence: 12, final: false

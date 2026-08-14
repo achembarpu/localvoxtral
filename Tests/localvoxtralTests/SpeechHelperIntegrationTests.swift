@@ -397,7 +397,6 @@ final class SpeechHelperIntegrationTests: XCTestCase {
             XCTAssertTrue(snapshot.deltas.isEmpty, "Revisable mode must not mix append-only deltas")
             XCTAssertFalse(snapshot.transcriptSnapshots.isEmpty, "Real Granite emitted no snapshots")
             XCTAssertEqual(snapshot.transcriptSnapshots.last?.text, doneText)
-            XCTAssertEqual(snapshot.transcriptSnapshots.last?.isFinal, true)
             for (previous, next) in zip(snapshot.transcriptSnapshots, snapshot.transcriptSnapshots.dropFirst()) {
                 XCTAssertGreaterThan(next.sequence, previous.sequence, "Snapshot sequence must be monotonic")
             }

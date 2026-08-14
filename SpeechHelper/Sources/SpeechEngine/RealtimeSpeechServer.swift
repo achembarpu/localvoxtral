@@ -128,10 +128,8 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
         // dependency whose raw `Delta` re-emits the whole transcript on a non-prefix step).
         // Feed it the session's full-transcript snapshot after each step/finish; emit only
         // its append-only delta. Touched only on the inference queue, like `session`.
-        var deltas = TranscriptDeltaEmitter()
+        var transcriptEmitter = TranscriptDeliveryEmitter(delivery: .appendOnly)
         var transcriptDelivery: TranscriptDelivery = .appendOnly
-        var lastSnapshotText = ""
-        var nextSnapshotSequence: UInt64 = 0
         enum Phase { case http, webSocket }
 
         init(stepMilliseconds: Int) {
@@ -236,6 +234,7 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
                 // growing-window work for normal append-only dictation.
                 if ctx.session == nil {
                     ctx.transcriptDelivery = delivery
+                    ctx.transcriptEmitter = TranscriptDeliveryEmitter(delivery: delivery)
                 }
                 self.sendServer(connection, .sessionUpdated)
             case .audioAppend(let base64):
@@ -260,13 +259,9 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
                 self.emitTranscriptUpdate(session.text, connection, ctx, final: true)
                 // The append-only final must equal the sum of deltas; a revisable final is
                 // authoritative and may legitimately replace an earlier snapshot.
-                let finalText = ctx.transcriptDelivery == .appendOnly
-                    ? ctx.deltas.emittedText : session.text
-                self.sendServer(connection, .transcriptDone(text: finalText))
+                self.sendServer(connection, .transcriptDone(text: ctx.transcriptEmitter.finalText))
                 ctx.session = nil  // ready for the next utterance
-                ctx.deltas = TranscriptDeltaEmitter()
-                ctx.lastSnapshotText = ""
-                ctx.nextSnapshotSequence = 0
+                ctx.transcriptEmitter.resetForNextUtterance()
                 ctx.stepBatcher.clear()
                 // The engine's finish() clears the buffer pool, but at that point the
                 // session's KV caches and encoder state are still live — dropping the
@@ -278,9 +273,7 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
                 Memory.clearCache()
             case .clear:
                 ctx.session = nil
-                ctx.deltas = TranscriptDeltaEmitter()
-                ctx.lastSnapshotText = ""
-                ctx.nextSnapshotSequence = 0
+                ctx.transcriptEmitter.resetForNextUtterance()
                 ctx.stepBatcher.clear()
                 // Same idle-footprint contract as the commit path above.
                 Memory.clearCache()
@@ -306,16 +299,8 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
     private func emitTranscriptUpdate(
         _ text: String, _ connection: NWConnection, _ ctx: Connection, final: Bool = false
     ) {
-        switch ctx.transcriptDelivery {
-        case .appendOnly:
-            let delta = ctx.deltas.emit(fullText: text)
-            if !delta.isEmpty { sendServer(connection, .transcriptDelta(delta)) }
-        case .revisableSnapshot:
-            guard final || text != ctx.lastSnapshotText else { return }
-            ctx.lastSnapshotText = text
-            let sequence = ctx.nextSnapshotSequence
-            ctx.nextSnapshotSequence &+= 1
-            sendServer(connection, .transcriptSnapshot(text: text, sequence: sequence, final: final))
+        if let message = ctx.transcriptEmitter.emit(fullText: text, final: final) {
+            sendServer(connection, message)
         }
     }
 

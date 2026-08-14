@@ -157,9 +157,7 @@ extension DictationViewModel {
     private func handleFinalTranscriptEvent(_ text: String) {
         guard acceptsRealtimeEvents else { return }
         let processedText = preprocessIncomingTranscriptChunk(text)
-        if isOverlayBufferModeEnabled, sessionTranscriptDelivery == .revisableSnapshot,
-           !processedText.isEmpty
-        {
+        if isOverlayBufferModeEnabled, sessionTranscriptDelivery == .revisableSnapshot {
             // `transcript.done` remains the compatibility terminal frame, but
             // its text is authoritative in snapshot mode and may revise the
             // last non-final overlay snapshot.

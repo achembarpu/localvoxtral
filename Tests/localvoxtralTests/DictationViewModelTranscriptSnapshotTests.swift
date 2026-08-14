@@ -59,6 +59,37 @@ final class DictationViewModelTranscriptSnapshotTests: XCTestCase {
         XCTAssertTrue(viewModel.pendingSegmentText.isEmpty)
         XCTAssertTrue(coordinator.refreshes.isEmpty)
     }
+
+    func testFinalTranscriptAfterSnapshotPromotesOnlyAuthoritativeTextOnce() {
+        let (viewModel, _) = makeViewModel(output: .overlayBuffer)
+        viewModel.sessionTranscriptDelivery = .revisableSnapshot
+
+        viewModel.handle(event: .transcriptSnapshot(.init(
+            text: "I went too", sequence: 0, isFinal: false
+        )))
+        viewModel.handle(event: .transcriptSnapshot(.init(
+            text: "I went to", sequence: 1, isFinal: true
+        )))
+        viewModel.handle(event: .finalTranscript("I went to"))
+
+        XCTAssertEqual(viewModel.transcriptText, "I went to")
+        XCTAssertTrue(viewModel.pendingSegmentText.isEmpty)
+        XCTAssertTrue(viewModel.livePartialText.isEmpty)
+    }
+
+    func testEmptyFinalTranscriptClearsARevisableProvisionalSnapshot() {
+        let (viewModel, coordinator) = makeViewModel(output: .overlayBuffer)
+        viewModel.sessionTranscriptDelivery = .revisableSnapshot
+        viewModel.handle(event: .transcriptSnapshot(.init(
+            text: "tentative words", sequence: 0, isFinal: false
+        )))
+
+        viewModel.handle(event: .finalTranscript(""))
+
+        XCTAssertTrue(viewModel.transcriptText.isEmpty)
+        XCTAssertTrue(viewModel.pendingSegmentText.isEmpty)
+        XCTAssertEqual(coordinator.refreshes.last?.display, "")
+    }
 }
 
 private final class SnapshotOverlayCoordinator: OverlayBufferSessionCoordinating {
