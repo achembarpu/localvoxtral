@@ -67,7 +67,7 @@ enum PolishModelCatalog {
             estimatedRAMGB: 0.9,
             samplingDefaults: nil,
             chatTemplateArguments: ["enable_thinking": false],
-            summary: "Smallest footprint; OptiQ-4bit of the 0.8B"
+            summary: "Small footprint; suitable for constrained Macs"
         ),
         PolishModelOption(
             repoID: "mlx-community/Qwen3.5-2B-OptiQ-4bit",
@@ -77,7 +77,7 @@ enum PolishModelCatalog {
             estimatedRAMGB: 1.9,
             samplingDefaults: nil,
             chatTemplateArguments: ["enable_thinking": false],
-            summary: "~2x the 4B's speed, roughly half its memory"
+            summary: "Lower-memory alternative to the 4B"
         ),
         PolishModelOption(
             repoID: "mlx-community/Qwen3.5-4B-OptiQ-4bit",

@@ -18,8 +18,31 @@ final class PolishModelCatalogTests: XCTestCase {
         XCTAssertNil(
             PolishModelCatalog.option(
                 forRepoID: "mlx-community/Qwen3.5-0.8B-8bit"
-            )?.chatTemplateArguments
+        )?.chatTemplateArguments
         )
+    }
+
+    func testOptiQOptionsExposeStablePickerAndRequestAttributes() throws {
+        let compact = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/Qwen3.5-0.8B-OptiQ-4bit")
+        )
+        XCTAssertEqual(compact.revision, "ef60586933bd2cc02b763f77eb8839a5114bbec1")
+        XCTAssertEqual(compact.displayName, "Qwen3.5 0.8B OptiQ (lowest RAM)")
+        XCTAssertEqual(compact.chatTemplateArguments, ["enable_thinking": false])
+        XCTAssertEqual(compact.summary, "Small footprint; suitable for constrained Macs")
+
+        let balanced = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/Qwen3.5-2B-OptiQ-4bit")
+        )
+        XCTAssertEqual(balanced.revision, "adc8669eb431e3168aeb4e320bd7b757914350e2")
+        XCTAssertEqual(balanced.displayName, "Qwen3.5 2B OptiQ (fast)")
+        XCTAssertEqual(balanced.chatTemplateArguments, ["enable_thinking": false])
+        XCTAssertEqual(balanced.summary, "Lower-memory alternative to the 4B")
+
+        let entries = PolishModelPickerSupport.entries(storedRepoID: balanced.repoID)
+        XCTAssertEqual(entries.map(\.repoID), PolishModelCatalog.options.map(\.repoID))
+        XCTAssertEqual(entries.first(where: { $0.repoID == compact.repoID })?.label, compact.displayName)
+        XCTAssertEqual(entries.first(where: { $0.repoID == balanced.repoID })?.option, balanced)
     }
 
     /// Every catalog model names an exact commit. A bare repo id tracks main,
