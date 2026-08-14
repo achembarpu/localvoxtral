@@ -43,11 +43,13 @@ and `be2beeb`, the merge of the `feat/nemotron-incremental-mel` branch): it equa
   O(new frames) instead of O(whole buffer) — total O(buffer) for a dictation session
   instead of O(buffer²)); and an RNN-T prediction-network cache across consecutive
   unchanged frames (blank runs skip one LSTM forward per frame).
-- `GraniteSpeechStreamSession` (`Models/GraniteSpeech/`): final-only delivery for
-  Granite Speech 4.1. Its utterance-global log-mel normalization, bidirectional
-  convolution right edge, and audio-tokens-before-prompt layout cannot produce correct
-  append-only deltas. The session buffers audio and executes the exact offline pipeline
-  once in `finish()`, avoiding the former O(buffer²) growing-window re-decode.
+- `GraniteSpeechStreamSession` (`Models/GraniteSpeech/`): Granite Speech 4.1 defaults
+  to final-only delivery because its utterance-global log-mel normalization,
+  bidirectional convolution right edge, and audio-tokens-before-prompt layout cannot
+  produce correct append-only deltas. Its explicit `revisableOverlay` mode re-decodes
+  at the model's window cadence and publishes complete replacement snapshots for the
+  app's Overlay Buffer only. It is deliberately never negotiated for Live Auto-Paste;
+  final-only avoids the growing-window re-decode overhead when revisions are not wanted.
 
 The live speechd integration lane (`remote-build.sh integration-speechd`) is the gate for
 model behavior on real audio. When these fork changes land upstream, the procedure below

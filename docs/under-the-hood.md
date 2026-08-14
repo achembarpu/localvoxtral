@@ -32,9 +32,11 @@ supervises two inference engines for you — no terminal required:
   transcription quality. The speech model catalog also carries experimental
   **Nemotron 3.5 ASR Streaming 0.6B** (native chunked streaming) and
   **Granite Speech 4.1 2B**. Neither is the managed default. Granite Speech
-  buffers a dictation and emits its exact transcript when recording stops;
-  it intentionally has no live partials because its offline architecture
-  cannot produce correct append-only updates.
+  defaults to one exact transcript when recording stops. In Overlay Buffer,
+  users can explicitly select **Allow revisions**: Granite then periodically
+  replaces tentative overlay text as its growing-window decoder re-evaluates
+  the utterance. This is never used for Live Auto-Paste, whose text must stay
+  append-only.
 - **Polishing — `localvoxtral-polishd`**, a bundled Swift helper built on
   Apple's [MLX Swift](https://github.com/ml-explore/mlx-swift-lm), runs
   [Qwen3.5-4B-OptiQ in 4-bit](https://huggingface.co/mlx-community/Qwen3.5-4B-OptiQ-4bit)

@@ -30,7 +30,10 @@ Live Auto-Paste; behavior follows the `Toggle` / `Push to Talk` setting.
   speak; on stop, the text runs through the replacement dictionary and
   optional LLM polishing, then commits into the focused app. The overlay
   shows a **Polished** badge whenever the LLM touched your text, and the raw
-  transcript stays one click away in the menu bar popover.
+  transcript stays one click away in the menu bar popover. In Managed local
+  settings, **Overlay updates** lets you choose append-only tentative text or
+  allow revisions where the selected model supports them (currently Granite
+  Speech 4.1).
 - **Live Auto-Paste** — words land in the focused app while you're still
   talking. Dictionary replacements are applied before text is typed;
   localvoxtral never backspaces over what an app has already drawn.
