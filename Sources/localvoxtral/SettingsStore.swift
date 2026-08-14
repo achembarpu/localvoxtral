@@ -254,6 +254,7 @@ final class SettingsStore {
         static let dictationBackendMode = "settings.dictation_backend_mode"
         static let speechdCacheLimit = "settings.speechd_cache_limit"
         static let speechdStepCadence = "settings.speechd_step_cadence"
+        static let managedSpeechModel = "settings.managed_speech_model"
         static let polishingBackendMode = "settings.polishing_backend_mode"
         // Legacy global backend mode. Read only for one-time migration.
         static let backendMode = "settings.backend_mode"
@@ -347,6 +348,12 @@ final class SettingsStore {
     /// contract as `speechdCacheLimit`.
     var speechdStepCadence: SpeechdStepCadence {
         didSet { defaults.set(speechdStepCadence.rawValue, forKey: Keys.speechdStepCadence) }
+    }
+
+    /// HF repo selected for the managed speechd helper. External mode keeps
+    /// its independent server-side model setting.
+    var managedSpeechModel: String {
+        didSet { defaults.set(managedSpeechModel, forKey: Keys.managedSpeechModel) }
     }
 
     /// True once the user has completed (or skipped) the first-launch onboarding
@@ -767,6 +774,14 @@ final class SettingsStore {
             speechdStepCadence = parsedStepCadence
         } else {
             speechdStepCadence = .auto
+        }
+
+        let storedManagedSpeechModel = defaults.string(forKey: Keys.managedSpeechModel)?.trimmed ?? ""
+        if let option = SpeechModelCatalog.option(forRepoID: storedManagedSpeechModel) {
+            managedSpeechModel = option.repoID
+        } else {
+            managedSpeechModel = SpeechModelCatalog.defaultOption.repoID
+            defaults.set(SpeechModelCatalog.defaultOption.repoID, forKey: Keys.managedSpeechModel)
         }
 
         let configuredProvider = Self.loadString(
@@ -1237,7 +1252,7 @@ final class SettingsStore {
             // Keep the external provider's placeholder/default independent:
             // user-typed external values remain ignored in managed mode, but
             // an existing external endpoint still sees its historical model.
-            return SpeechModelCatalog.defaultOption.repoID
+            return resolvedManagedSpeechModel
         }
         let normalized = Self.normalizedModelName(from: modelName(for: provider))
         return normalized.isEmpty ? provider.defaultModelName : normalized
@@ -1338,5 +1353,15 @@ final class SettingsStore {
     var resolvedManagedLLMPolishingModel: String {
         let model = managedLLMPolishingModel.trimmed
         return model.isEmpty ? Self.defaultLLMPolishingModel : model
+    }
+
+    /// Resolve only catalog entries proved safe for the bundled runtime. A
+    /// stale or hand-edited persisted value cannot leak into a helper launch.
+    var resolvedManagedSpeechModel: String {
+        let model = managedSpeechModel.trimmed
+        guard let option = SpeechModelCatalog.option(forRepoID: model) else {
+            return SpeechModelCatalog.defaultOption.repoID
+        }
+        return option.repoID
     }
 }

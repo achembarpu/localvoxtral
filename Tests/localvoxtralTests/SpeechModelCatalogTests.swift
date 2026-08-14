@@ -28,4 +28,33 @@ final class SpeechModelCatalogTests: XCTestCase {
         XCTAssertFalse(SpeechModelCatalog.options.contains { $0.repoID.contains("granite-speech-4.0") })
     }
 
+    @MainActor
+    func testManagedSpeechModelSelectionPersistsAndResolvesCatalogOption() throws {
+        let suiteName = "localvoxtral.speech-model.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = SettingsStore(defaults: defaults, environment: [:])
+
+        XCTAssertEqual(settings.resolvedManagedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
+        XCTAssertEqual(settings.managedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
+        let nemotron = try XCTUnwrap(SpeechModelCatalog.option(forRepoID: "mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit"))
+        settings.managedSpeechModel = nemotron.repoID
+
+        XCTAssertEqual(SettingsStore(defaults: defaults, environment: [:]).resolvedManagedSpeechModel, nemotron.repoID)
+        XCTAssertEqual(SpeechModelCatalog.option(forRepoID: settings.resolvedManagedSpeechModel), nemotron)
+    }
+
+    @MainActor
+    func testManagedSpeechModelSelectionRejectsUnknownStoredRepo() {
+        let suiteName = "localvoxtral.speech-model.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("unknown/model", forKey: "settings.managed_speech_model")
+
+        let settings = SettingsStore(defaults: defaults, environment: [:])
+
+        XCTAssertEqual(settings.resolvedManagedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
+        XCTAssertEqual(settings.managedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
+    }
+
 }

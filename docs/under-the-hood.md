@@ -20,8 +20,12 @@ supervises two inference engines for you — no terminal required:
 
 - **Dictation — `localvoxtral-speechd`**, a bundled Swift helper built on
   [mlx-audio-swift](https://github.com/Blaizzy/mlx-audio-swift), streams
+  a catalog-selected ASR checkpoint through the app's OpenAI
+  Realtime-compatible server. Settings currently expose the available
   [Voxtral Mini 4B Realtime in 4-bit with a quantized LM head](https://huggingface.co/T0mSIlver/Voxtral-Mini-4B-Realtime-2602-4bit-qhead)
-  through the app's OpenAI Realtime-compatible server. The checkpoint is a
+  and NVIDIA Nemotron 3.5 ASR Streaming 0.6B options. The selected repo and
+  exact revision are captured together for each download and launch. The
+  default checkpoint is a
   conversion of the mlx-community 4-bit snapshot that also quantizes the
   tied output head — cutting the decode loop's largest projection from
   ~30 ms to ~3 ms per token and saving ~530 MB of memory, at level

@@ -79,6 +79,7 @@ protocol ManagedBackendManaging: AnyObject {
 final class BackendManager: ManagedBackendManaging {
     typealias SupervisorFactory = @MainActor (BackendProcessConfiguration) -> any ManagedBackendSupervising
     typealias PolishingModelProvider = @MainActor () -> String
+    typealias SpeechModelProvider = @MainActor () -> SpeechModelOption
     /// Megabytes for the speechd `--cache-limit-mb` flag, or nil to omit it and
     /// let the helper apply its built-in default.
     typealias SpeechdCacheLimitProvider = @MainActor () -> Int?
@@ -93,9 +94,11 @@ final class BackendManager: ManagedBackendManaging {
     @ObservationIgnored private let legacyPortDefense: any LegacyVoxmlxPortDefending
     @ObservationIgnored private let supervisorFactory: SupervisorFactory
     @ObservationIgnored private let polishingModelProvider: PolishingModelProvider
+    @ObservationIgnored private let speechModelProvider: SpeechModelProvider
     @ObservationIgnored private let speechdCacheLimitProvider: SpeechdCacheLimitProvider
     @ObservationIgnored private let speechdStepCadenceProvider: SpeechdStepCadenceProvider
     @ObservationIgnored private var speechdSupervisor: (any ManagedBackendSupervising)?
+    @ObservationIgnored private var speechdLaunchedModel: SpeechModelOption?
     @ObservationIgnored private var polishdSupervisor: (any ManagedBackendSupervising)?
     // Per-backend single-flight slots. A global shared slot (the previous
     // design) let a lingering dictation run swallow a polishing request whose
@@ -118,6 +121,9 @@ final class BackendManager: ManagedBackendManaging {
         polishingModelProvider: @escaping PolishingModelProvider = {
             SettingsStore.defaultLLMPolishingModel
         },
+        speechModelProvider: @escaping SpeechModelProvider = {
+            SpeechModelCatalog.defaultOption
+        },
         speechdCacheLimitProvider: @escaping SpeechdCacheLimitProvider = { nil },
         speechdStepCadenceProvider: @escaping SpeechdStepCadenceProvider = { nil },
         supervisorFactory: @escaping SupervisorFactory = { configuration in
@@ -127,11 +133,13 @@ final class BackendManager: ManagedBackendManaging {
         self.modelPreparer = modelPreparer ?? HFModelDownloader()
         self.legacyPortDefense = legacyPortDefense ?? LegacyVoxmlxPortDefense(layout: layout)
         self.polishingModelProvider = polishingModelProvider
+        self.speechModelProvider = speechModelProvider
         self.speechdCacheLimitProvider = speechdCacheLimitProvider
         self.speechdStepCadenceProvider = speechdStepCadenceProvider
         self.supervisorFactory = supervisorFactory
         self.speechdStatus = .stopped
         self.polishdStatus = .stopped
+        self.speechdLaunchedModel = nil
     }
 
     var statusUpdates: AsyncStream<ManagedBackendStatusUpdate> {
@@ -225,6 +233,7 @@ final class BackendManager: ManagedBackendManaging {
         // 2026-07-17: changing the memory limit and toggling Managed →
         // External → Managed silently kept the old argv.
         speechdSupervisor = nil
+        speechdLaunchedModel = nil
         polishdSupervisor = nil
         speechdStateMirrorTask?.cancel()
         speechdStateMirrorTask = nil
@@ -241,15 +250,20 @@ final class BackendManager: ManagedBackendManaging {
     func stopDictation() async {
         let cancelledEnsure = await cancelEnsureTaskAndAwaitCompletion(for: BackendCatalog.speechd)
         let hadSupervisor = speechdSupervisor != nil
+        await stopSpeechdSupervisorAndClear()
+        if cancelledEnsure || hadSupervisor {
+            setStatus(.stopped, for: BackendCatalog.speechd)
+        }
+    }
+
+    private func stopSpeechdSupervisorAndClear() async {
         await speechdSupervisor?.stop()
         // See stopAll(): drop the supervisor so the next ensure rebuilds the
         // launch arguments from the current settings providers.
         speechdSupervisor = nil
+        speechdLaunchedModel = nil
         speechdStateMirrorTask?.cancel()
         speechdStateMirrorTask = nil
-        if cancelledEnsure || hadSupervisor {
-            setStatus(.stopped, for: BackendCatalog.speechd)
-        }
     }
 
     func stopPolishing() async {
@@ -308,12 +322,25 @@ final class BackendManager: ManagedBackendManaging {
     }
 
     private func ensureReady(_ spec: ManagedBackendSpec) async throws {
+        let speechModel = spec.id == BackendCatalog.speechd.id
+            ? speechModelProvider()
+            : nil
         if isReady(spec) {
-            setStatus(.ready, for: spec)
-            return
+            if spec.id != BackendCatalog.speechd.id || speechdLaunchedModel == speechModel {
+                setStatus(.ready, for: spec)
+                return
+            }
+            // Settings may have changed while the previous process was still
+            // running. Do not let a new client attach to that stale model.
+            // We are inside the dictation single-flight task, so calling the
+            // public stopDictation() here would cancel and await this task.
+            await stopSpeechdSupervisorAndClear()
         }
 
-        try await prepareModel(for: spec)
+        // Snapshot the catalog entry once. Selection can change while a model
+        // downloads; the exact same repo/revision must reach both downloader
+        // and helper argv for one launch.
+        try await prepareModel(for: spec, speechModel: speechModel)
         try Task.checkCancellation()
 
         if spec.id == BackendCatalog.speechd.id {
@@ -331,12 +358,15 @@ final class BackendManager: ManagedBackendManaging {
 
         setStatus(.starting, for: spec)
         try Task.checkCancellation()
-        let supervisor = supervisor(for: spec)
+        let supervisor = supervisor(for: spec, speechModel: speechModel)
         try await startAndWaitUntilReady(supervisor, spec: spec)
     }
 
-    private func prepareModel(for spec: ManagedBackendSpec) async throws {
-        let request = modelPreparationRequest(for: spec)
+    private func prepareModel(
+        for spec: ManagedBackendSpec,
+        speechModel: SpeechModelOption?
+    ) async throws {
+        let request = modelPreparationRequest(for: spec, speechModel: speechModel)
         setStatus(
             .preparingModel(progress: ModelDownloadProgress(downloadedBytes: 0, totalBytes: nil)),
             for: spec
@@ -406,15 +436,19 @@ final class BackendManager: ManagedBackendManaging {
         )
     }
 
-    private func supervisor(for spec: ManagedBackendSpec) -> any ManagedBackendSupervising {
+    private func supervisor(
+        for spec: ManagedBackendSpec,
+        speechModel: SpeechModelOption?
+    ) -> any ManagedBackendSupervising {
         switch spec.id {
         case BackendCatalog.speechd.id:
             if let speechdSupervisor {
                 startStateMirrorIfNeeded(supervisor: speechdSupervisor, spec: spec)
                 return speechdSupervisor
             }
-            let supervisor = supervisorFactory(configuration(for: spec))
+            let supervisor = supervisorFactory(configuration(for: spec, speechModel: speechModel))
             speechdSupervisor = supervisor
+            speechdLaunchedModel = speechModel
             startStateMirrorIfNeeded(supervisor: supervisor, spec: spec)
             return supervisor
         case BackendCatalog.polishd.id:
@@ -422,7 +456,7 @@ final class BackendManager: ManagedBackendManaging {
                 startStateMirrorIfNeeded(supervisor: polishdSupervisor, spec: spec)
                 return polishdSupervisor
             }
-            let supervisor = supervisorFactory(configuration(for: spec))
+            let supervisor = supervisorFactory(configuration(for: spec, speechModel: speechModel))
             polishdSupervisor = supervisor
             startStateMirrorIfNeeded(supervisor: supervisor, spec: spec)
             return supervisor
@@ -431,11 +465,14 @@ final class BackendManager: ManagedBackendManaging {
         }
     }
 
-    private func configuration(for spec: ManagedBackendSpec) -> BackendProcessConfiguration {
+    private func configuration(
+        for spec: ManagedBackendSpec,
+        speechModel: SpeechModelOption?
+    ) -> BackendProcessConfiguration {
         BackendProcessConfiguration(
             name: spec.displayName,
             executableURL: executableURL(for: spec),
-            arguments: arguments(for: spec),
+            arguments: arguments(for: spec, speechModel: speechModel),
             environment: processEnvironment(),
             readinessURL: URL(string: "http://127.0.0.1:\(spec.port)/health")!,
             readinessTimeout: readinessTimeout(for: spec)
@@ -454,11 +491,14 @@ final class BackendManager: ManagedBackendManaging {
             .appendingPathComponent(spec.executableName)
     }
 
-    private func arguments(for spec: ManagedBackendSpec) -> [String] {
+    private func arguments(
+        for spec: ManagedBackendSpec,
+        speechModel: SpeechModelOption?
+    ) -> [String] {
         let parentPID = "\(Darwin.getpid())"
         switch spec.id {
         case BackendCatalog.speechd.id:
-            let option = SpeechModelCatalog.defaultOption
+            let option = speechModel ?? speechModelProvider()
             var arguments = [
                 "--model",
                 option.repoID,
@@ -500,7 +540,10 @@ final class BackendManager: ManagedBackendManaging {
         }
     }
 
-    private func modelPreparationRequest(for spec: ManagedBackendSpec) -> ModelPreparationRequest {
+    private func modelPreparationRequest(
+        for spec: ManagedBackendSpec,
+        speechModel: SpeechModelOption?
+    ) -> ModelPreparationRequest {
         // Keep these include patterns in sync with:
         // - mlx-audio-swift's VoxtralRealtimeModel.fromDirectory loader:
         //   config.json, every model*.safetensors file, and tekken.json.
@@ -516,7 +559,7 @@ final class BackendManager: ManagedBackendManaging {
         //   one so existing HF snapshots stay valid.
         switch spec.id {
         case BackendCatalog.speechd.id:
-            let option = SpeechModelCatalog.defaultOption
+            let option = speechModel ?? speechModelProvider()
             return ModelPreparationRequest(
                 backendID: spec.id,
                 displayName: spec.displayName,
