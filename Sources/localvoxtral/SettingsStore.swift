@@ -776,7 +776,13 @@ final class SettingsStore {
             speechdStepCadence = .auto
         }
 
-        managedSpeechModel = defaults.string(forKey: Keys.managedSpeechModel) ?? ""
+        let storedManagedSpeechModel = defaults.string(forKey: Keys.managedSpeechModel)?.trimmed ?? ""
+        if let option = SpeechModelCatalog.option(forRepoID: storedManagedSpeechModel) {
+            managedSpeechModel = option.repoID
+        } else {
+            managedSpeechModel = SpeechModelCatalog.defaultOption.repoID
+            defaults.set(SpeechModelCatalog.defaultOption.repoID, forKey: Keys.managedSpeechModel)
+        }
 
         let configuredProvider = Self.loadString(
             defaults: defaults, key: Keys.realtimeProvider,

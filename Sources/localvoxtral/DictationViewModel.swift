@@ -1297,6 +1297,10 @@ final class DictationViewModel {
     /// the old process before warming the selected catalog entry so downloads,
     /// argv, and the running endpoint cannot disagree.
     func applyManagedSpeechModelChange(_ repoID: String) {
+        guard !isDictating, !isConnectingRealtimeSession, !isFinalizingStop else {
+            Log.backends.notice("ignored managed speech model change during an active dictation session")
+            return
+        }
         guard let option = SpeechModelCatalog.option(forRepoID: repoID),
               settings.resolvedManagedSpeechModel != option.repoID
         else { return }

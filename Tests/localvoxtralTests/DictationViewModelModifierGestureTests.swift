@@ -72,6 +72,24 @@ final class DictationViewModelModifierGestureTests: XCTestCase {
         )
     }
 
+    func testManagedSpeechModelChangeIsIgnoredDuringActiveSession() {
+        let settings = makeSettings(outputMode: .overlayBuffer)
+        settings.dictationBackendMode = .managedLocal
+        let viewModel = makeViewModel(settings: settings)
+        viewModel.isDictating = true
+
+        let alternate = SpeechModelCatalog.options.first {
+            $0.repoID != SpeechModelCatalog.defaultOption.repoID
+        }!
+        viewModel.applyManagedSpeechModelChange(alternate.repoID)
+
+        XCTAssertEqual(
+            settings.managedSpeechModel,
+            SpeechModelCatalog.defaultOption.repoID,
+            "model selection must not stop or invalidate a live dictation session"
+        )
+    }
+
     func testFailedModifierHoldStartDoesNotLatchLiveModeForNextSettingsBasedSession() async {
         let settings = makeSettings(outputMode: .liveAutoPaste)
         let viewModel = makeViewModel(settings: settings)

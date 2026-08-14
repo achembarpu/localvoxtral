@@ -26,6 +26,7 @@ final class SpeechModelCatalogTests: XCTestCase {
         let settings = SettingsStore(defaults: defaults, environment: [:])
 
         XCTAssertEqual(settings.resolvedManagedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
+        XCTAssertEqual(settings.managedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
         let nemotron = try XCTUnwrap(SpeechModelCatalog.option(forRepoID: "mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit"))
         settings.managedSpeechModel = nemotron.repoID
 
@@ -43,6 +44,7 @@ final class SpeechModelCatalogTests: XCTestCase {
         let settings = SettingsStore(defaults: defaults, environment: [:])
 
         XCTAssertEqual(settings.resolvedManagedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
+        XCTAssertEqual(settings.managedSpeechModel, SpeechModelCatalog.defaultOption.repoID)
     }
 
 }
