@@ -29,9 +29,10 @@ supervises two inference engines for you — no terminal required:
 - **Polishing — `localvoxtral-polishd`**, a bundled Swift helper built on
   Apple's [MLX Swift](https://github.com/ml-explore/mlx-swift-lm), runs
   [Qwen3.5-4B-OptiQ in 4-bit](https://huggingface.co/mlx-community/Qwen3.5-4B-OptiQ-4bit)
-  by default (a lighter 0.8B and a larger 9B are one click away in
-  Settings). A warm prompt cache keeps polish latency low, and turning
-  polishing off frees its memory immediately.
+  by default. Settings also offers Qwen3.5 0.8B (8-bit), Qwen3.5 0.8B
+  OptiQ (4-bit), Qwen3.5 2B OptiQ (4-bit), and Qwen3.5 9B OptiQ (4-bit).
+  A warm prompt cache keeps polish latency low, and turning polishing off
+  frees its memory immediately.
 
 Both helpers ship inside the app bundle. Their model weights download from
 Hugging Face at exact pinned commits, so an upstream edit to a model repo
