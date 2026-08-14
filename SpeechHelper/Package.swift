@@ -37,7 +37,7 @@ let package = Package(
         // 8ed8188 was upstream main at the merge of Blaizzy/mlx-audio-swift#232
         // (quantized-tied-embedding loader — required by the catalog's -qhead model,
         // SpeechModelCatalog). The pin now lives on the achembarpu fork at the merge of
-        // the Nemotron incremental-mel work (be2beeb): it carries the upstream base plus
+        // the Nemotron incremental-mel work (0343661): it carries the reviewed upstream base plus
         // the streaming optimizations SpeechEngine's Nemotron engine needs. When those
         // land upstream, return to upstream main and drop the fork — see DEPENDENCY.md.
         .package(
