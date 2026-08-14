@@ -17,4 +17,22 @@ final class SpeechModelCatalogTests: XCTestCase {
         XCTAssertEqual(option.revision.count, 40)
         XCTAssertTrue(option.revision.allSatisfy(\.isHexDigit))
     }
+
+    func testNemotronOptionSelectsStreamingEngineAndPinnedRevision() {
+        let repoID = "mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit"
+        let option = SpeechModelCatalog.option(forRepoID: repoID)
+
+        XCTAssertEqual(option?.repoID, repoID)
+        XCTAssertEqual(option?.engine, .nemotron)
+        XCTAssertEqual(option?.revision, "7279359e4481b5e9e185a318bd618e429c6d86cd")
+    }
+
+    func testCatalogOptionsHaveUniquePinnedModelIDs() {
+        let repoIDs = SpeechModelCatalog.options.map(\.repoID)
+
+        XCTAssertEqual(Set(repoIDs).count, repoIDs.count)
+        XCTAssertTrue(SpeechModelCatalog.options.allSatisfy {
+            $0.revision.count == 40 && $0.revision.allSatisfy(\.isHexDigit)
+        })
+    }
 }
