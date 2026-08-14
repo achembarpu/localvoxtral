@@ -229,6 +229,13 @@ private struct ConnectionSettingsPane: View {
         )
     }
 
+    private var managedSpeechModelBinding: Binding<String> {
+        Binding(
+            get: { settings.resolvedManagedSpeechModel },
+            set: { viewModel.applyManagedSpeechModelChange($0) }
+        )
+    }
+
     private var managedPolishingModelEntries: [PolishModelPickerEntry] {
         PolishModelPickerSupport.entries(storedRepoID: settings.resolvedManagedLLMPolishingModel)
     }
@@ -267,6 +274,16 @@ private struct ConnectionSettingsPane: View {
                             .textFieldStyle(.roundedBorder)
                     }
                 case .managedLocal:
+                    SettingsFieldRow(title: "Model") {
+                        Picker("", selection: managedSpeechModelBinding) {
+                            ForEach(SpeechModelCatalog.options, id: \.repoID) { option in
+                                Text(option.displayName).tag(option.repoID)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+
                     SettingsFieldRow(title: "Memory limit") {
                         Picker("", selection: speechdCacheLimitBinding) {
                             ForEach(SpeechdCacheLimit.allCases) { limit in

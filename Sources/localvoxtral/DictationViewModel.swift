@@ -648,6 +648,10 @@ final class DictationViewModel {
             backendManager
             ?? BackendManager(
                 polishingModelProvider: { settings.resolvedManagedLLMPolishingModel },
+                speechModelProvider: {
+                    SpeechModelCatalog.option(forRepoID: settings.resolvedManagedSpeechModel)
+                        ?? SpeechModelCatalog.defaultOption
+                },
                 speechdCacheLimitProvider: { settings.speechdCacheLimit.megabytes },
                 speechdStepCadenceProvider: { settings.speechdStepCadence.milliseconds }
             )
@@ -1287,6 +1291,17 @@ final class DictationViewModel {
         guard settings.speechdStepCadence != cadence else { return }
         settings.speechdStepCadence = cadence
         restartManagedDictationEngineForSettingChange(reason: "step interval changed")
+    }
+
+    /// Managed speechd captures its model and revision at process launch. Stop
+    /// the old process before warming the selected catalog entry so downloads,
+    /// argv, and the running endpoint cannot disagree.
+    func applyManagedSpeechModelChange(_ repoID: String) {
+        guard let option = SpeechModelCatalog.option(forRepoID: repoID),
+              settings.resolvedManagedSpeechModel != option.repoID
+        else { return }
+        settings.managedSpeechModel = option.repoID
+        restartManagedDictationEngineForSettingChange(reason: "speech model changed")
     }
 
     private func restartManagedDictationEngineForSettingChange(reason: String) {
