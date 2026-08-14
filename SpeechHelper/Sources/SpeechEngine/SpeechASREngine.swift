@@ -15,7 +15,9 @@ final class VoxtralASREngine: SpeechASREngine, @unchecked Sendable {
         self.model = model
     }
 
-    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+    func makeSession(
+        transcriptionDelayMs: Int?, transcriptDelivery _: TranscriptDelivery
+    ) -> SpeechASRStreamingSession {
         VoxtralASRSession(
             session: model.makeStreamSession(
                 temperature: 0.0,
@@ -54,7 +56,9 @@ final class NemotronASREngine: SpeechASREngine, @unchecked Sendable {
         self.model = model
     }
 
-    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+    func makeSession(
+        transcriptionDelayMs: Int?, transcriptDelivery _: TranscriptDelivery
+    ) -> SpeechASRStreamingSession {
         // Nemotron's chunk size is its latency ladder (80/160/320/560/1120 ms).
         // transcriptionDelayMs is the app's configured latency point; pass it
         // through so the "fast" engine honors the same knob.
@@ -96,11 +100,17 @@ final class GraniteSpeechASREngine: SpeechASREngine, @unchecked Sendable {
         self.model = model
     }
 
-    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+    func makeSession(
+        transcriptionDelayMs: Int?, transcriptDelivery: TranscriptDelivery
+    ) -> SpeechASRStreamingSession {
         // Granite's growing-window session re-decodes at the model's fixed
         // window_size=15 (~300 ms) cadence; there is no chunk ladder to map
         // transcriptionDelayMs onto, so the knob is ignored.
-        GraniteSpeechASRSession(session: model.makeStreamSession())
+        GraniteSpeechASRSession(
+            session: model.makeStreamSession(
+                mode: transcriptDelivery == .revisableSnapshot ? .revisableOverlay : .finalOnly
+            )
+        )
     }
 }
 

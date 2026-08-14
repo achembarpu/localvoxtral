@@ -9,6 +9,14 @@ enum SpeechEngineKind: String, Equatable, Sendable {
     case granite
 }
 
+/// Models advertise their delivery behavior in catalog metadata rather than
+/// being hard-coded in session routing. Adding a future revisable engine is a
+/// catalog declaration plus helper support, not a new UI special case.
+enum SpeechTranscriptDeliveryCapability: String, Equatable, Sendable {
+    case appendOnly
+    case revisableSnapshot
+}
+
 struct SpeechModelOption: Equatable, Sendable {
     let repoID: String
     /// Exact commit downloaded by the app and loaded by speechd. The upstream
@@ -20,6 +28,11 @@ struct SpeechModelOption: Equatable, Sendable {
     /// existing call sites keep compiling; the helper's `SpeechModelLoader`
     /// maps repo id → engine the same way.
     var engine: SpeechEngineKind = .voxtral
+    var transcriptDeliveryCapabilities: Set<SpeechTranscriptDeliveryCapability> = [.appendOnly]
+
+    func supports(_ capability: SpeechTranscriptDeliveryCapability) -> Bool {
+        transcriptDeliveryCapabilities.contains(capability)
+    }
 }
 
 enum SpeechModelCatalog {
@@ -48,13 +61,15 @@ enum SpeechModelCatalog {
             displayName: "Nemotron 3.5 ASR Streaming 0.6B (fast)",
             engine: .nemotron
         ),
-        // Granite 4.1 emits one exact offline transcript when dictation stops.
-        // Its model topology cannot produce correct append-only live deltas.
+        // Granite 4.1's growing-window decoder may revise earlier words. It is
+        // only enabled for the Overlay Buffer's explicit revisable mode; normal
+        // sessions stay final-on-stop to preserve append-only efficiency.
         SpeechModelOption(
             repoID: "divydeep/granite-speech-4.1-2b-mlx-4bit",
             revision: "746628663cd779a680e64e0b3f0fb9b34740029d",
-            displayName: "Granite Speech 4.1 2B (final on stop)",
-            engine: .granite
+            displayName: "Granite Speech 4.1 2B (revisable overlay)",
+            engine: .granite,
+            transcriptDeliveryCapabilities: [.appendOnly, .revisableSnapshot]
         ),
     ]
 

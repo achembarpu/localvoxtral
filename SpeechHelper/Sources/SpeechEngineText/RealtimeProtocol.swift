@@ -4,7 +4,7 @@ import Foundation
 /// Matches what `RealtimeAPIWebSocketClient` sends and expects (verified against the client),
 /// so this Swift server is a drop-in for the Python `voxmlx` process. Pure and Metal-free.
 public enum RealtimeClientMessage: Equatable, Sendable {
-    case sessionUpdate
+    case sessionUpdate(delivery: TranscriptDelivery)
     /// 16 kHz mono PCM16LE, base64-encoded.
     case audioAppend(base64PCM16: String)
     /// `final == true` finalizes the utterance; a non-final commit is a no-op (matches voxmlx).
@@ -27,7 +27,9 @@ public enum RealtimeClientMessage: Equatable, Sendable {
 
         switch type {
         case "session.update":
-            return .sessionUpdate
+            return .sessionUpdate(
+                delivery: TranscriptDelivery(wireValue: obj["transcript_delivery"] as? String)
+            )
         case "input_audio_buffer.append":
             guard let audio = obj["audio"] as? String, !audio.isEmpty else {
                 throw ParseError.invalidAudioPayload
@@ -50,6 +52,9 @@ public enum RealtimeServerMessage: Equatable, Sendable {
     case sessionCreated
     case sessionUpdated
     case transcriptDelta(String)
+    /// An authoritative replacement for a provisional Overlay Buffer transcript.
+    /// This additive frame is only negotiated for models that support revisions.
+    case transcriptSnapshot(text: String, sequence: UInt64, final: Bool)
     case transcriptDone(text: String)
     case error(message: String)
 
@@ -61,6 +66,13 @@ public enum RealtimeServerMessage: Equatable, Sendable {
             return #"{"type":"session.updated"}"#
         case .transcriptDelta(let delta):
             return Self.object(["type": "response.audio_transcript.delta", "delta": delta])
+        case .transcriptSnapshot(let text, let sequence, let final):
+            return Self.object([
+                "type": "response.audio_transcript.snapshot",
+                "text": text,
+                "sequence": sequence,
+                "final": final,
+            ])
         case .transcriptDone(let text):
             return Self.object(["type": "response.audio_transcript.done", "text": text])
         case .error(let message):
@@ -70,7 +82,7 @@ public enum RealtimeServerMessage: Equatable, Sendable {
 
     /// JSONSerialization with sorted keys so a value like a string with quotes/newlines is
     /// escaped correctly (never hand-format JSON around model-produced text).
-    private static func object(_ dict: [String: String]) -> String {
+    private static func object(_ dict: [String: Any]) -> String {
         guard
             let data = try? JSONSerialization.data(
                 withJSONObject: dict, options: [.sortedKeys, .withoutEscapingSlashes]),
@@ -79,6 +91,17 @@ public enum RealtimeServerMessage: Equatable, Sendable {
             return #"{"type":"error","message":"serialization failed"}"#
         }
         return string
+    }
+}
+
+/// Per-session delivery negotiated between the app and bundled speech helper.
+/// Missing or unknown values deliberately retain the safe append-only behavior.
+public enum TranscriptDelivery: String, Equatable, Sendable {
+    case appendOnly = "append_only"
+    case revisableSnapshot = "revisable_snapshot"
+
+    init(wireValue: String?) {
+        self = Self(rawValue: wireValue ?? "") ?? .appendOnly
     }
 }
 

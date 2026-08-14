@@ -25,6 +25,7 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
         var finalCommitCompletionGate: FinalCommitCompletionGate = .idle
         var pendingMessages: [String] = []
         var pendingModelName = ""
+        var pendingTranscriptDelivery: RealtimeTranscriptDelivery = .appendOnly
         #if DEBUG
         var skipsSocketCreationForTesting = false
         #endif
@@ -79,6 +80,7 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
             s.base.isUserInitiatedDisconnect = false
             s.pendingMessages.removeAll(keepingCapacity: true)
             s.pendingModelName = modelName
+            s.pendingTranscriptDelivery = configuration.transcriptDelivery
             s.hasReceivedSessionCreated = false
             s.hasBypassedSessionCreatedGate = false
             s.hasSentSessionUpdate = false
@@ -171,13 +173,17 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
         switch type {
         case "session.created":
             emit(.status("Session ready."))
-            let startup: (modelName: String, shouldSendUpdate: Bool, queuedMessages: [String])? =
+            let startup: (
+                modelName: String, transcriptDelivery: RealtimeTranscriptDelivery,
+                shouldSendUpdate: Bool, queuedMessages: [String]
+            )? =
                 state.withLock { s in
                     guard s.base.socketState == .connected else { return nil }
                     guard !s.hasReceivedSessionCreated else { return nil }
                     s.hasReceivedSessionCreated = true
                     stopSessionReadyTimerLocked(&s)
                     let modelName = s.pendingModelName
+                    let transcriptDelivery = s.pendingTranscriptDelivery
                     let shouldSendUpdate = !s.hasSentSessionUpdate && !modelName.isEmpty
                     if shouldSendUpdate {
                         s.hasSentSessionUpdate = true
@@ -185,20 +191,31 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
                     let queuedMessages = s.pendingMessages
                     s.pendingMessages.removeAll(keepingCapacity: true)
                     return (
-                        modelName: modelName, shouldSendUpdate: shouldSendUpdate,
+                        modelName: modelName, transcriptDelivery: transcriptDelivery,
+                        shouldSendUpdate: shouldSendUpdate,
                         queuedMessages: queuedMessages
                     )
                 }
 
             guard let startup else { return }
             if startup.shouldSendUpdate {
-                send(event: ["type": "session.update", "model": startup.modelName])
+                sendSessionUpdate(modelName: startup.modelName, delivery: startup.transcriptDelivery)
             }
             for message in startup.queuedMessages {
                 sendText(message)
             }
         case "session.updated":
             emit(.status("Session updated."))
+        case "response.audio_transcript.snapshot", "transcription.snapshot":
+            guard let text = findString(in: json, matching: ["text", "transcript"]),
+                  let number = json["sequence"] as? NSNumber,
+                  number.int64Value >= 0
+            else { return }
+            emit(.transcriptSnapshot(.init(
+                text: text,
+                sequence: number.uint64Value,
+                isFinal: (json["final"] as? Bool) ?? false
+            )))
         case "transcription.delta",
             "response.audio_transcript.delta",
             "conversation.item.input_audio_transcription.delta":
@@ -355,13 +372,17 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
         timer.setEventHandler { [weak self] in
             guard let self else { return }
             let startup:
-                (modelName: String, shouldSendUpdate: Bool, queuedMessages: [String])? = self.state
+                (
+                    modelName: String, transcriptDelivery: RealtimeTranscriptDelivery,
+                    shouldSendUpdate: Bool, queuedMessages: [String]
+                )? = self.state
                     .withLock { s in
                         guard s.base.socketState == .connected else { return nil }
                         guard !s.hasReceivedSessionCreated else { return nil }
                         self.stopSessionReadyTimerLocked(&s)
                         s.hasBypassedSessionCreatedGate = true
                         let modelName = s.pendingModelName
+                        let transcriptDelivery = s.pendingTranscriptDelivery
                         let shouldSendUpdate = !s.hasSentSessionUpdate && !modelName.isEmpty
                         if shouldSendUpdate {
                             s.hasSentSessionUpdate = true
@@ -369,7 +390,8 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
                         let queuedMessages = s.pendingMessages
                         s.pendingMessages.removeAll(keepingCapacity: true)
                         return (
-                            modelName: modelName, shouldSendUpdate: shouldSendUpdate,
+                            modelName: modelName, transcriptDelivery: transcriptDelivery,
+                            shouldSendUpdate: shouldSendUpdate,
                             queuedMessages: queuedMessages
                         )
                     }
@@ -377,7 +399,9 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
             self.emit(.status(
                 "Connected without session.created; using compatibility mode."))
             if startup.shouldSendUpdate {
-                self.send(event: ["type": "session.update", "model": startup.modelName])
+                self.sendSessionUpdate(
+                    modelName: startup.modelName, delivery: startup.transcriptDelivery
+                )
             }
             for message in startup.queuedMessages {
                 self.sendText(message)
@@ -432,9 +456,23 @@ final class RealtimeAPIWebSocketClient: BaseRealtimeWebSocketClient, @unchecked 
         s.finalCommitCompletionGate = .idle
         s.pendingMessages.removeAll(keepingCapacity: false)
         s.pendingModelName = ""
+        s.pendingTranscriptDelivery = .appendOnly
     }
 
     // MARK: - JSON Helpers
+
+    private func sendSessionUpdate(
+        modelName: String, delivery: RealtimeTranscriptDelivery
+    ) {
+        var update: [String: Any] = ["type": "session.update", "model": modelName]
+        // Omit the default field for maximum compatibility with third-party
+        // OpenAI-Realtime servers. The bundled helper treats an omitted value as
+        // append-only too.
+        if delivery == .revisableSnapshot {
+            update["transcript_delivery"] = delivery.rawValue
+        }
+        send(event: update)
+    }
 
     /// Recursively searches a JSON structure for the first non-empty string
     /// value matching one of the given keys in priority order. Internal visibility

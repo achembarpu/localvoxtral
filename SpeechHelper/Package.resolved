@@ -24,7 +24,7 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/achembarpu/mlx-audio-swift.git",
       "state" : {
-        "revision" : "1fde0de7669531de778441f079afded6283a630a"
+        "revision" : "abcdf154c14a7c3ed8cf9725383f14e0ac1fd999"
       }
     },
     {

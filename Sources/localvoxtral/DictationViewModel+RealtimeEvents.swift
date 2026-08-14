@@ -21,6 +21,8 @@ extension DictationViewModel {
             handleStatusEvent(message)
         case .partialTranscript(let delta):
             handlePartialTranscriptEvent(delta)
+        case .transcriptSnapshot(let snapshot):
+            handleTranscriptSnapshotEvent(snapshot)
         case .finalTranscript(let text):
             handleFinalTranscriptEvent(text)
         case .transcriptionFinalized:
@@ -130,9 +132,40 @@ extension DictationViewModel {
         refreshOverlayBufferSession()
     }
 
+    /// Applies an authoritative model snapshot to the in-app overlay. Unlike a
+    /// delta, this deliberately replaces provisional words; this path is never
+    /// eligible for Live Auto-Paste, where already-inserted text cannot safely
+    /// be withdrawn.
+    private func handleTranscriptSnapshotEvent(_ snapshot: RealtimeTranscriptSnapshot) {
+        guard acceptsRealtimeEvents,
+              isOverlayBufferModeEnabled,
+              sessionTranscriptDelivery == .revisableSnapshot,
+              lastTranscriptSnapshotSequence.map({ snapshot.sequence > $0 }) ?? true
+        else { return }
+
+        lastTranscriptSnapshotSequence = snapshot.sequence
+        let processedText = preprocessIncomingTranscriptChunk(snapshot.text)
+        pendingSegmentText = processedText
+        livePartialText = processedText
+        if isFinalizingStop {
+            realtimeFinalizationLastActivityAt = Date()
+        }
+        statusText = isFinalizingStop ? "Finalizing..." : "Transcribing..."
+        refreshOverlayBufferSession()
+    }
+
     private func handleFinalTranscriptEvent(_ text: String) {
         guard acceptsRealtimeEvents else { return }
         let processedText = preprocessIncomingTranscriptChunk(text)
+        if isOverlayBufferModeEnabled, sessionTranscriptDelivery == .revisableSnapshot,
+           !processedText.isEmpty
+        {
+            // `transcript.done` remains the compatibility terminal frame, but
+            // its text is authoritative in snapshot mode and may revise the
+            // last non-final overlay snapshot.
+            pendingSegmentText = processedText
+            livePartialText = processedText
+        }
         if isFinalizingStop {
             realtimeFinalizationLastActivityAt = Date()
         }
@@ -304,6 +337,10 @@ extension DictationViewModel {
             Log.deltas.notice(
                 "[delta-log seq=\(sequence)] partial delta: \(delta.debugDescription, privacy: .public)")
             emitDeltaLogRecord(.partialDelta, sequence: sequence, payload: delta)
+        case .transcriptSnapshot(let snapshot):
+            Log.deltas.notice(
+                "[delta-log seq=\(sequence)] transcript snapshot #\(snapshot.sequence): \(snapshot.text.debugDescription, privacy: .public)")
+            emitDeltaLogRecord(.partialDelta, sequence: sequence, payload: snapshot.text)
         case .finalTranscript(let text):
             Log.deltas.notice(
                 "[delta-log seq=\(sequence)] final transcript: \(text.debugDescription, privacy: .public)")

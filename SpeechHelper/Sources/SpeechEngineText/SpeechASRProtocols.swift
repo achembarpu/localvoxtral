@@ -31,7 +31,17 @@ public protocol SpeechASREngine: Sendable {
     /// `transcriptionDelayMs` is the app's latency/accuracy knob; each engine
     /// maps it to its own equivalent (Voxtral's transcription delay, Nemotron's
     /// chunk size).
-    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession
+    func makeSession(
+        transcriptionDelayMs: Int?,
+        transcriptDelivery: TranscriptDelivery
+    ) -> SpeechASRStreamingSession
+}
+
+public extension SpeechASREngine {
+    /// Existing callers preserve the safe, low-overhead append-only stream.
+    func makeSession(transcriptionDelayMs: Int?) -> SpeechASRStreamingSession {
+        makeSession(transcriptionDelayMs: transcriptionDelayMs, transcriptDelivery: .appendOnly)
+    }
 }
 
 /// Which streaming engine `speechd` drives for a model. The helper infers this

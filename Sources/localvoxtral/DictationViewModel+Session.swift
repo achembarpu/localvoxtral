@@ -32,6 +32,8 @@ extension DictationViewModel {
 
     func clearLatchedSessionMetadata() {
         sessionOutputMode = nil
+        sessionTranscriptDelivery = .appendOnly
+        lastTranscriptSnapshotSequence = nil
         sessionStartedAt = nil
         sessionProvider = nil
         sessionModelName = nil
@@ -285,6 +287,10 @@ extension DictationViewModel {
         let preferredInputID = selectedInputDeviceID.isEmpty ? nil : selectedInputDeviceID
         sessionProvider = provider
         sessionModelName = model
+        sessionTranscriptDelivery = resolvedTranscriptDelivery(
+            outputMode: requestedOutputMode,
+            managedModelRepoID: settings.resolvedManagedSpeechModel
+        )
 
         // Fail fast on Live Auto-Paste without Accessibility trust: transcribed
         // text would have nowhere to go. Refresh trust once (the user may have
@@ -372,7 +378,8 @@ extension DictationViewModel {
             try realtimeAPIClient.connect(configuration: .init(
                 endpoint: endpoint,
                 apiKey: settings.trimmedAPIKey,
-                model: model
+                model: model,
+                transcriptDelivery: sessionTranscriptDelivery
             ))
             scheduleConnectTimeout()
         } catch {
@@ -380,6 +387,21 @@ extension DictationViewModel {
             handleConnectFailure(reason: .connectThrew(rawError: error.localizedDescription))
             debugLog("beginDictationSession failed error=\(error.localizedDescription)")
         }
+    }
+
+    /// Resolves a user preference against the active destination and model
+    /// capability once at session start. That avoids mid-dictation semantic
+    /// changes and ensures no external endpoint is asked for an unknown mode.
+    func resolvedTranscriptDelivery(
+        outputMode: DictationOutputMode, managedModelRepoID: String
+    ) -> RealtimeTranscriptDelivery {
+        guard outputMode == .overlayBuffer,
+              settings.dictationBackendMode == .managedLocal,
+              settings.overlayTranscriptUpdateMode == .allowRevisions,
+              SpeechModelCatalog.option(forRepoID: managedModelRepoID)?
+                .supports(.revisableSnapshot) == true
+        else { return .appendOnly }
+        return .revisableSnapshot
     }
 
     func startAudioCaptureAfterConnection() {

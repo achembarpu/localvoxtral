@@ -236,6 +236,12 @@ private struct ConnectionSettingsPane: View {
         )
     }
 
+    private var overlayTranscriptUpdateModeBinding: Binding<OverlayTranscriptUpdateMode> {
+        Binding(get: { settings.overlayTranscriptUpdateMode }, set: {
+            settings.overlayTranscriptUpdateMode = $0
+        })
+    }
+
     private var managedPolishingModelEntries: [PolishModelPickerEntry] {
         PolishModelPickerSupport.entries(storedRepoID: settings.resolvedManagedLLMPolishingModel)
     }
@@ -267,6 +273,25 @@ private struct ConnectionSettingsPane: View {
                     SettingsFieldRow(title: "Model") {
                         TextField(settings.modelPlaceholder, text: modelBinding)
                             .textFieldStyle(.roundedBorder)
+                    }
+
+                    SettingsFieldRow(title: "Overlay updates") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Picker("", selection: overlayTranscriptUpdateModeBinding) {
+                                ForEach(OverlayTranscriptUpdateMode.allCases) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                            .disabled(settings.dictationOutputMode == .liveAutoPaste)
+
+                            SettingsHelpText(
+                                settings.dictationOutputMode == .liveAutoPaste
+                                    ? "Live Auto-Paste always uses append-only updates for safety."
+                                    : "Allow revisions uses supported models to replace tentative text in the Overlay Buffer."
+                            )
+                        }
                     }
 
                     SettingsFieldRow(title: "API key") {

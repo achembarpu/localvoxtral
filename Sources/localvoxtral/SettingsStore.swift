@@ -41,6 +41,22 @@ enum DictationOutputMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// Overlay-only preference for interim ASR text. Live Auto-Paste always uses
+/// append-only delivery even when this is set to allow revisions.
+enum OverlayTranscriptUpdateMode: String, CaseIterable, Identifiable, Sendable {
+    case appendOnly = "append_only"
+    case allowRevisions = "allow_revisions"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .appendOnly: return "Append-only"
+        case .allowRevisions: return "Allow revisions"
+        }
+    }
+}
+
 enum DictationShortcutMode: String, CaseIterable, Identifiable {
     case toggle = "toggle"
     case pushToTalk = "push_to_talk"
@@ -255,6 +271,7 @@ final class SettingsStore {
         static let speechdCacheLimit = "settings.speechd_cache_limit"
         static let speechdStepCadence = "settings.speechd_step_cadence"
         static let managedSpeechModel = "settings.managed_speech_model"
+        static let overlayTranscriptUpdateMode = "settings.overlay_transcript_update_mode"
         static let polishingBackendMode = "settings.polishing_backend_mode"
         // Legacy global backend mode. Read only for one-time migration.
         static let backendMode = "settings.backend_mode"
@@ -354,6 +371,14 @@ final class SettingsStore {
     /// its independent server-side model setting.
     var managedSpeechModel: String {
         didSet { defaults.set(managedSpeechModel, forKey: Keys.managedSpeechModel) }
+    }
+
+    /// Persisted independently from output mode so an Overlay user can choose
+    /// predictable append-only text even with a model capable of revisions.
+    var overlayTranscriptUpdateMode: OverlayTranscriptUpdateMode {
+        didSet {
+            defaults.set(overlayTranscriptUpdateMode.rawValue, forKey: Keys.overlayTranscriptUpdateMode)
+        }
     }
 
     /// True once the user has completed (or skipped) the first-launch onboarding
@@ -783,6 +808,9 @@ final class SettingsStore {
             managedSpeechModel = SpeechModelCatalog.defaultOption.repoID
             defaults.set(SpeechModelCatalog.defaultOption.repoID, forKey: Keys.managedSpeechModel)
         }
+
+        overlayTranscriptUpdateMode = defaults.string(forKey: Keys.overlayTranscriptUpdateMode)
+            .flatMap(OverlayTranscriptUpdateMode.init(rawValue:)) ?? .appendOnly
 
         let configuredProvider = Self.loadString(
             defaults: defaults, key: Keys.realtimeProvider,

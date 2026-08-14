@@ -26,6 +26,8 @@ final class SpeechModelCatalogTests: XCTestCase {
         XCTAssertEqual(granite.repoID, "divydeep/granite-speech-4.1-2b-mlx-4bit")
         XCTAssertEqual(granite.revision, "746628663cd779a680e64e0b3f0fb9b34740029d")
         XCTAssertFalse(SpeechModelCatalog.options.contains { $0.repoID.contains("granite-speech-4.0") })
+        XCTAssertTrue(granite.supports(.revisableSnapshot))
+        XCTAssertFalse(SpeechModelCatalog.defaultOption.supports(.revisableSnapshot))
     }
 
     @MainActor
@@ -42,6 +44,21 @@ final class SpeechModelCatalogTests: XCTestCase {
 
         XCTAssertEqual(SettingsStore(defaults: defaults, environment: [:]).resolvedManagedSpeechModel, nemotron.repoID)
         XCTAssertEqual(SpeechModelCatalog.option(forRepoID: settings.resolvedManagedSpeechModel), nemotron)
+    }
+
+    @MainActor
+    func testOverlayTranscriptUpdatesDefaultToAppendOnlyAndPersist() {
+        let suiteName = "localvoxtral.overlay-transcript-updates.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = SettingsStore(defaults: defaults, environment: [:])
+        XCTAssertEqual(settings.overlayTranscriptUpdateMode, .appendOnly)
+        settings.overlayTranscriptUpdateMode = .allowRevisions
+        XCTAssertEqual(
+            SettingsStore(defaults: defaults, environment: [:]).overlayTranscriptUpdateMode,
+            .allowRevisions
+        )
     }
 
     @MainActor

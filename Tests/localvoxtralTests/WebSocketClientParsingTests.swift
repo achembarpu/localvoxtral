@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import XCTest
 @testable import localvoxtral
 
@@ -6,6 +7,23 @@ final class WebSocketClientParsingTests: XCTestCase {
 
     private func makeClient() -> RealtimeAPIWebSocketClient {
         RealtimeAPIWebSocketClient()
+    }
+
+    func testSnapshotFrameEmitsRevisableTranscriptSnapshot() {
+        let client = makeClient()
+        let events = Mutex<[RealtimeEvent]>([])
+        client.setEventHandler { event in events.withLock { $0.append(event) } }
+
+        client.handle(json: [
+            "type": "response.audio_transcript.snapshot",
+            "text": "I went to the store",
+            "sequence": 7,
+            "final": false,
+        ])
+
+        XCTAssertEqual(events.withLock { $0 }, [
+            .transcriptSnapshot(.init(text: "I went to the store", sequence: 7, isFinal: false))
+        ])
     }
 
     // MARK: - findString

@@ -312,6 +312,8 @@ final class SpeechHelperIntegrationTests: XCTestCase {
 
     func testRealAudioMeetsAccuracyAndAppendOnlyDeltaContract() async throws {
         let (binary, model) = try helperConfiguration()
+        let expectsRevisableSnapshots = SpeechModelCatalog.option(forRepoID: model)?
+            .supports(.revisableSnapshot) == true
         try await ensureModelCached(model)
         let (process, _) = try await launchHelper(binary: binary, model: model)
 
@@ -359,6 +361,8 @@ final class SpeechHelperIntegrationTests: XCTestCase {
                 }
             case .partialTranscript(let delta):
                 transcript.append(delta: delta)
+            case .transcriptSnapshot(let snapshot):
+                transcript.append(snapshot: snapshot)
             case .finalTranscript(let text):
                 transcript.append(doneText: text)
                 finalTranscript.fulfill()
@@ -374,7 +378,8 @@ final class SpeechHelperIntegrationTests: XCTestCase {
         let configuration = RealtimeSessionConfiguration(
             endpoint: URL(string: "ws://127.0.0.1:\(Self.testPort)/v1/realtime")!,
             apiKey: "",
-            model: model
+            model: model,
+            transcriptDelivery: expectsRevisableSnapshots ? .revisableSnapshot : .appendOnly
         )
         try client.connect(configuration: configuration)
         await fulfillment(
@@ -388,24 +393,34 @@ final class SpeechHelperIntegrationTests: XCTestCase {
 
         let snapshot = transcript.snapshot()
         let doneText = try XCTUnwrap(snapshot.doneTexts.only)
-        var accumulated = ""
-        for delta in snapshot.deltas {
-            XCTAssertFalse(
-                delta.contains("\u{FFFD}"),
-                "A provisional split UTF-8 replacement character escaped onto the wire"
-            )
-            accumulated += delta
-            XCTAssertTrue(
-                doneText.hasPrefix(accumulated),
-                "Delta stream requires un-typing: \(accumulated.debugDescription) is not a done-text prefix"
+        if expectsRevisableSnapshots {
+            XCTAssertTrue(snapshot.deltas.isEmpty, "Revisable mode must not mix append-only deltas")
+            XCTAssertFalse(snapshot.transcriptSnapshots.isEmpty, "Real Granite emitted no snapshots")
+            XCTAssertEqual(snapshot.transcriptSnapshots.last?.text, doneText)
+            XCTAssertEqual(snapshot.transcriptSnapshots.last?.isFinal, true)
+            for (previous, next) in zip(snapshot.transcriptSnapshots, snapshot.transcriptSnapshots.dropFirst()) {
+                XCTAssertGreaterThan(next.sequence, previous.sequence, "Snapshot sequence must be monotonic")
+            }
+        } else {
+            var accumulated = ""
+            for delta in snapshot.deltas {
+                XCTAssertFalse(
+                    delta.contains("\u{FFFD}"),
+                    "A provisional split UTF-8 replacement character escaped onto the wire"
+                )
+                accumulated += delta
+                XCTAssertTrue(
+                    doneText.hasPrefix(accumulated),
+                    "Delta stream requires un-typing: \(accumulated.debugDescription) is not a done-text prefix"
+                )
+            }
+            XCTAssertFalse(snapshot.deltas.isEmpty, "Real ASR emitted no transcript deltas")
+            XCTAssertEqual(
+                accumulated,
+                doneText,
+                "Concatenating every transcript.delta must exactly equal transcript.done"
             )
         }
-        XCTAssertFalse(snapshot.deltas.isEmpty, "Real ASR emitted no transcript deltas")
-        XCTAssertEqual(
-            accumulated,
-            doneText,
-            "Concatenating every transcript.delta must exactly equal transcript.done"
-        )
 
         let accuracy = IntegrationTestSupport.wordAccuracy(expected: expected, actual: doneText)
         print(
@@ -478,11 +493,13 @@ final class SpeechHelperIntegrationTests: XCTestCase {
 private final class TranscriptCapture: @unchecked Sendable {
     struct Snapshot {
         let deltas: [String]
+        let transcriptSnapshots: [RealtimeTranscriptSnapshot]
         let doneTexts: [String]
     }
 
     private let lock = NSLock()
     private var deltas: [String] = []
+    private var transcriptSnapshots: [RealtimeTranscriptSnapshot] = []
     private var doneTexts: [String] = []
 
     func append(delta: String) {
@@ -497,10 +514,18 @@ private final class TranscriptCapture: @unchecked Sendable {
         lock.unlock()
     }
 
+    func append(snapshot: RealtimeTranscriptSnapshot) {
+        lock.lock()
+        transcriptSnapshots.append(snapshot)
+        lock.unlock()
+    }
+
     func snapshot() -> Snapshot {
         lock.lock()
         defer { lock.unlock() }
-        return Snapshot(deltas: deltas, doneTexts: doneTexts)
+        return Snapshot(
+            deltas: deltas, transcriptSnapshots: transcriptSnapshots, doneTexts: doneTexts
+        )
     }
 }
 

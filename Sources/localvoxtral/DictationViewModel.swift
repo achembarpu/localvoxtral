@@ -472,6 +472,10 @@ final class DictationViewModel {
     @ObservationIgnored
     var sessionOutputMode: DictationOutputMode?
     @ObservationIgnored
+    var sessionTranscriptDelivery: RealtimeTranscriptDelivery = .appendOnly
+    @ObservationIgnored
+    var lastTranscriptSnapshotSequence: UInt64?
+    @ObservationIgnored
     var polishAndCommitTask: Task<Void, Never>?
     @ObservationIgnored
     // Several finalization callbacks can converge here; keep stop cleanup

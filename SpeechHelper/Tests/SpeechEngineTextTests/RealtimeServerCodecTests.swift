@@ -126,6 +126,24 @@ final class RealtimeServerCodecTests: XCTestCase {
         XCTAssertEqual(try RealtimeClientMessage.parse(Data(#"{"type":"input_audio_buffer.commit"}"#.utf8)), .commit(final: false))
     }
 
+    func testParseRevisableSnapshotSessionUpdate() throws {
+        let message = try RealtimeClientMessage.parse(
+            Data(#"{"type":"session.update","transcript_delivery":"revisable_snapshot"}"#.utf8))
+        XCTAssertEqual(message, .sessionUpdate(delivery: .revisableSnapshot))
+    }
+
+    func testSnapshotMessageCarriesMonotonicSequenceAndFinality() throws {
+        let json = RealtimeServerMessage.transcriptSnapshot(
+            text: "I went to the store", sequence: 12, final: false
+        ).json()
+        let parsed = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        XCTAssertEqual(parsed["type"] as? String, "response.audio_transcript.snapshot")
+        XCTAssertEqual(parsed["text"] as? String, "I went to the store")
+        XCTAssertEqual((parsed["sequence"] as? NSNumber)?.uint64Value, 12)
+        XCTAssertEqual(parsed["final"] as? Bool, false)
+    }
+
     func testUnknownTypeIsIgnoredNotAnError() throws {
         XCTAssertEqual(try RealtimeClientMessage.parse(Data(#"{"type":"response.created"}"#.utf8)), .ignored(type: "response.created"))
     }
