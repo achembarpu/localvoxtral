@@ -7,6 +7,7 @@ directory instead, never here.
 ## Using localvoxtral
 
 - [Install](install.md) — one-line install, requirements, Gatekeeper notes
+- [Homebrew cask](cask.md) — install and maintain the pinned cask
 - [Dictating](dictation.md) — shortcuts, output modes, settings reference,
   screenshots
 - [Terminals & coding agents](coding-agents.md) — dictating into Claude Code

@@ -1,0 +1,35 @@
+name: Cask
+
+# Validates the Homebrew cask (Casks/localvoxtral.rb) independently of ci.yml,
+# which is lane-filtered for the Swift build/test matrix. Runs only when the
+# cask or its update script changes. GitHub-hosted macOS (no self-hosted
+# runner needed; a fork PR's untrusted code never touches the build machine).
+
+on:
+  pull_request:
+    paths: [Casks/**, scripts/update-cask.sh]
+  push:
+    branches: [main]
+    paths: [Casks/**, scripts/update-cask.sh]
+
+jobs:
+  validate:
+    runs-on: macos-15
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: "1"
+      HOMEBREW_NO_ENV_HINTS: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: brew style
+        run: brew style Casks/localvoxtral.rb
+
+      # Dry-run install downloads the release zip and verifies the pinned
+      # sha256 end to end, proving the cask resolves and installs.
+      - name: brew install --dry-run
+        run: brew install --cask --dry-run ./Casks/localvoxtral.rb
+
+      - name: brew audit
+        run: |
+          brew tap T0mSIlver/localvoxtral "$PWD"
+          brew audit --cask T0mSIlver/localvoxtral/localvoxtral
