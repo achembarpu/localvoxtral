@@ -1,11 +1,14 @@
-# Dependency: mlx-audio-swift VoxtralRealtime
+# Dependency: mlx-audio-swift ASR engines
 
 `SpeechEngine` drives [`Blaizzy/mlx-audio-swift`](https://github.com/Blaizzy/mlx-audio-swift)'s
-VoxtralRealtime engine as an **upstream SwiftPM dependency** (product `MLXAudioSTT`, MIT-licensed).
+VoxtralRealtime and Nemotron ASR engines as an **upstream SwiftPM dependency** (product
+`MLXAudioSTT`, MIT-licensed).
 It used to be vendored into `Sources/SpeechEngine/` with local patches; those patches were
 upstreamed (see below), so we depend instead of vendor.
 
-The app now consumes this package as its production managed ASR backend:
+The app now consumes this package as its production managed ASR backend. The default catalog
+entry uses Voxtral; the optional Nemotron entry selects `NemotronASRStreamSession`, which
+keeps its mel, encoder, and RNNT state across audio steps:
 `BackendCatalog.speechd` launches the bundled `localvoxtral-speechd`, and the
 app pre-downloads the catalog-pinned HF snapshot that the helper loads exactly.
 

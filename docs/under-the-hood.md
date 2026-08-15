@@ -26,6 +26,11 @@ supervises two inference engines for you — no terminal required:
   tied output head — cutting the decode loop's largest projection from
   ~30 ms to ~3 ms per token and saving ~530 MB of memory, at level
   transcription quality.
+  A selectable **Nemotron 3.5 ASR Streaming 0.6B 8-bit** option uses the
+  helper's native incremental RNNT engine when a lower-memory streaming path
+  is preferred. Its mel front end and encoder state are carried forward across
+  audio steps, avoiding whole-buffer recomputation during long dictation
+  sessions; its model and helper revisions are pinned as well.
 - **Polishing — `localvoxtral-polishd`**, a bundled Swift helper built on
   Apple's [MLX Swift](https://github.com/ml-explore/mlx-swift-lm), runs
   [Qwen3.5-4B-OptiQ in 4-bit](https://huggingface.co/mlx-community/Qwen3.5-4B-OptiQ-4bit)
