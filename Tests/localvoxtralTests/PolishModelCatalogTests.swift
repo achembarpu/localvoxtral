@@ -28,6 +28,41 @@ final class PolishModelCatalogTests: XCTestCase {
         XCTAssertEqual(granite.displayName, "Granite 4.1 3B (experimental)")
         XCTAssertNil(granite.chatTemplateArguments)
         XCTAssertNotEqual(granite, defaultOption)
+        let compact = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/Qwen3.5-0.8B-OptiQ-4bit")
+        )
+        XCTAssertEqual(compact.revision, "caddc45d3f1a150736f832916a72025ff7ffd040")
+        XCTAssertEqual(compact.displayName, "Qwen3.5 0.8B OptiQ (lowest RAM)")
+        XCTAssertEqual(compact.chatTemplateArguments, ["enable_thinking": false])
+        XCTAssertEqual(compact.summary, "Smallest footprint; OptiQ-4bit of the 0.8B")
+
+        let balanced = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/Qwen3.5-2B-OptiQ-4bit")
+        )
+        XCTAssertEqual(balanced.revision, "462e3d8e48b67e8178ad01ed4f003ee3fa0e06a1")
+        XCTAssertEqual(balanced.displayName, "Qwen3.5 2B OptiQ (fast)")
+        XCTAssertEqual(balanced.chatTemplateArguments, ["enable_thinking": false])
+        XCTAssertEqual(balanced.summary, "~2x the 4B's speed, roughly half its memory")
+
+        let entries = PolishModelPickerSupport.entries(storedRepoID: balanced.repoID)
+        XCTAssertEqual(entries.map(\.repoID), PolishModelCatalog.options.map(\.repoID))
+        XCTAssertEqual(entries.first(where: { $0.repoID == compact.repoID })?.label, compact.displayName)
+        XCTAssertEqual(entries.first(where: { $0.repoID == balanced.repoID })?.option, balanced)
+    }
+
+    func testOptiQTextOnlyPinsPrecedeVisionWeightIndexRegistration() throws {
+        let compact = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/Qwen3.5-0.8B-OptiQ-4bit")
+        )
+        let balanced = try XCTUnwrap(
+            PolishModelCatalog.option(forRepoID: "mlx-community/Qwen3.5-2B-OptiQ-4bit")
+        )
+
+        // The subsequent HF commits add optiq/optiq_vision.safetensors to
+        // model.safetensors.index.json. PolishHelper is text-only and its
+        // managed download intentionally excludes that optional sidecar.
+        XCTAssertEqual(compact.revision, "caddc45d3f1a150736f832916a72025ff7ffd040")
+        XCTAssertEqual(balanced.revision, "462e3d8e48b67e8178ad01ed4f003ee3fa0e06a1")
     }
 
     /// Every catalog model names an exact commit. A bare repo id tracks main,
