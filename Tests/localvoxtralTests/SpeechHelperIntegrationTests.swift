@@ -395,7 +395,7 @@ final class SpeechHelperIntegrationTests: XCTestCase {
         let doneText = try XCTUnwrap(snapshot.doneTexts.only)
         if expectsRevisableSnapshots {
             XCTAssertTrue(snapshot.deltas.isEmpty, "Revisable mode must not mix append-only deltas")
-            XCTAssertFalse(snapshot.transcriptSnapshots.isEmpty, "Real Granite emitted no snapshots")
+            XCTAssertFalse(snapshot.transcriptSnapshots.isEmpty, "Revisable ASR emitted no snapshots")
             XCTAssertEqual(snapshot.transcriptSnapshots.last?.text, doneText)
             for (previous, next) in zip(snapshot.transcriptSnapshots, snapshot.transcriptSnapshots.dropFirst()) {
                 XCTAssertGreaterThan(next.sequence, previous.sequence, "Snapshot sequence must be monotonic")
