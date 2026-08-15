@@ -40,6 +40,8 @@ final class SpeechASREngineKindTests: XCTestCase {
             .granite
         )
         XCTAssertEqual(SpeechASREngineKind.infer(fromModelID: "some/other-asr"), .voxtral)
+    }
+
     func testQwen3ASRModelMapsToQwen3ASREngine() {
         XCTAssertEqual(
             SpeechASREngineKind.infer(

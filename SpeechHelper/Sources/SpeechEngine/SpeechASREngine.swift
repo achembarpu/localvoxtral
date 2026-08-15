@@ -134,6 +134,7 @@ final class GraniteSpeechASRSession: SpeechASRStreamingSession, @unchecked Senda
     }
 
     var text: String { session.text }
+}
 // MARK: - Qwen3-ASR (native streaming engine)
 
 final class Qwen3ASREngine: SpeechASREngine, @unchecked Sendable {

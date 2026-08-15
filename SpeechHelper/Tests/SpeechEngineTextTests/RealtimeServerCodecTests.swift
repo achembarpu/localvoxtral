@@ -162,20 +162,6 @@ final class RealtimeServerCodecTests: XCTestCase {
         XCTAssertEqual(parsed?["text"], "he said \"hi\"\nbye")
     }
 
-    func testSessionUpdateCanOptIntoRevisableSnapshots() throws {
-        let message = try RealtimeClientMessage.parse(
-            Data(#"{"type":"session.update","transcript_delivery":"revisable_snapshot"}"#.utf8)
-        )
-        XCTAssertEqual(message, .sessionUpdateWithDelivery(.revisableSnapshot))
-    }
-
-    func testRevisableSnapshotCarriesAuthoritativeFullText() {
-        let json = RealtimeServerMessage.transcriptSnapshot("hello revised").json()
-        let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: String]
-        XCTAssertEqual(object?["type"], "response.audio_transcript.snapshot")
-        XCTAssertEqual(object?["text"], "hello revised")
-    }
-
     // MARK: PCM16
 
     func testPCM16DecodeNormalizes() {

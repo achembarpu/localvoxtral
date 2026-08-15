@@ -123,7 +123,6 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
         var phase: Phase = .http
         var buffer = Data()
         var session: SpeechASRStreamingSession?
-        var delivery: SpeechTranscriptDelivery = .appendOnly
         var stepBatcher: StepBatcher
         // Append-only delta contract lives in OUR layer now (the engine is an upstream
         // dependency whose raw `Delta` re-emits the whole transcript on a non-prefix step).
@@ -238,13 +237,6 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
                     ctx.transcriptEmitter = TranscriptDeliveryEmitter(delivery: delivery)
                 }
                 self.sendServer(connection, .sessionUpdated)
-            case .sessionUpdateWithDelivery(let delivery):
-                guard ctx.session == nil else {
-                    self.sendServer(connection, .error(message: "session delivery must be set before audio"))
-                    return
-                }
-                ctx.delivery = delivery
-                self.sendServer(connection, .sessionUpdated)
             case .audioAppend(let base64):
                 guard let samples = PCM16.decode(base64: base64) else {
                     self.sendServer(connection, .error(message: "Invalid PCM16 payload"))
@@ -253,8 +245,8 @@ public final class RealtimeSpeechServer: @unchecked Sendable {
                 for batch in ctx.stepBatcher.append(samples) {
                     let session = self.ensureSession(ctx)
                     session.step(batch)
-                    if ctx.delivery == .revisableSnapshot {
-                        self.sendServer(connection, .transcriptSnapshot(session.text))
+                    if ctx.transcriptDelivery == .revisableSnapshot {
+                        self.emitTranscriptUpdate(session.text, connection, ctx)
                         continue
                     }
                     // Emit the append-only delta from the full transcript snapshot, NOT the
