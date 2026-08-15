@@ -106,8 +106,12 @@ final class SpeechHelperIntegrationTests: XCTestCase {
         let snapshotsDir = repoDir.appendingPathComponent("snapshots")
         let pinnedRevision = SpeechModelCatalog.option(forRepoID: repoID)?.revision
 
+        let engine = SpeechModelCatalog.option(forRepoID: repoID)?.engine ?? .voxtral
         if let pinnedRevision {
-            if Self.snapshotIsProvisioned(snapshotsDir.appendingPathComponent(pinnedRevision)) {
+            if Self.snapshotIsProvisioned(
+                snapshotsDir.appendingPathComponent(pinnedRevision),
+                engine: engine
+            ) {
                 return
             }
         } else if let revision = try? String(
@@ -116,7 +120,9 @@ final class SpeechHelperIntegrationTests: XCTestCase {
         )
         .trimmingCharacters(in: .whitespacesAndNewlines),
             !revision.isEmpty,
-            Self.snapshotIsProvisioned(snapshotsDir.appendingPathComponent(revision))
+            Self.snapshotIsProvisioned(
+                snapshotsDir.appendingPathComponent(revision), engine: engine
+            )
         {
             return
         }
@@ -187,13 +193,22 @@ final class SpeechHelperIntegrationTests: XCTestCase {
 
     static let provisionedSentinel = ".localvoxtral-provisioned"
 
-    static func snapshotIsProvisioned(_ snapshot: URL) -> Bool {
+    /// A model's tokenizer is engine-specific: Voxtral uses `tekken.json`,
+    /// while Granite uses the standard Hugging Face tokenizer files and has no
+    /// Tekken vocabulary. Keep this check aligned with the loader's minimum
+    /// file set so a Granite snapshot is not needlessly re-downloaded forever.
+    static func snapshotIsProvisioned(
+        _ snapshot: URL,
+        engine: SpeechEngineKind = .voxtral
+    ) -> Bool {
         let fileManager = FileManager.default
         let hasRequiredMetadata = fileManager.fileExists(
             atPath: snapshot.appendingPathComponent(provisionedSentinel).path
         )
             && fileManager.fileExists(atPath: snapshot.appendingPathComponent("config.json").path)
-            && fileManager.fileExists(atPath: snapshot.appendingPathComponent("tekken.json").path)
+            && (engine == .voxtral
+                ? fileManager.fileExists(atPath: snapshot.appendingPathComponent("tekken.json").path)
+                : fileManager.fileExists(atPath: snapshot.appendingPathComponent("tokenizer.json").path))
         guard hasRequiredMetadata else { return false }
         if fileManager.fileExists(atPath: snapshot.appendingPathComponent("model.safetensors").path) {
             return true
@@ -239,6 +254,27 @@ final class SpeechHelperIntegrationTests: XCTestCase {
         }
 
         XCTAssertFalse(Self.snapshotIsProvisioned(snapshot))
+    }
+
+    func testSnapshotProvisioningSentinelAcceptsGraniteWithoutTekken() throws {
+        let snapshot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("speechd-granite-snapshot-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: snapshot) }
+        try FileManager.default.createDirectory(at: snapshot, withIntermediateDirectories: true)
+        for name in [
+            Self.provisionedSentinel,
+            "config.json",
+            "tokenizer.json",
+            "model.safetensors",
+        ] {
+            try Data().write(to: snapshot.appendingPathComponent(name))
+        }
+
+        XCTAssertTrue(Self.snapshotIsProvisioned(snapshot, engine: .granite))
+        XCTAssertFalse(
+            Self.snapshotIsProvisioned(snapshot),
+            "Voxtral must continue to require tekken.json"
+        )
     }
 
     private func launchHelper(
