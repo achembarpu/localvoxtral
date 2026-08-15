@@ -17,7 +17,7 @@ checkout — we no longer keep a copy here.
 ```
 .package(
     url: "https://github.com/achembarpu/mlx-audio-swift.git",
-    revision: "c208e4c9eafa1151cfcfc2ac660a1099b3f45444"
+    revision: "a6d536221f32651efd0fbe3722e7501a3e8e6b12"
 )
 ```
 
@@ -36,8 +36,8 @@ merged #232 is a review-evolved variant of the fork commit (module-routed
 `embedToken`/`logits` instead of raw-weight access, plus upstream regression tests), so the
 switchback re-ran the live speechd integration lane rather than assuming equivalence.
 
-**This pin is on the `achembarpu/mlx-audio-swift` fork** (`1fde0de`, atop `1ba4ddb`, `bf95728`, `c208e4c`,
-and `be2beeb`, the merge of the `feat/nemotron-incremental-mel` branch): it equals upstream
+**This pin is on the `achembarpu/mlx-audio-swift` fork** (`a6d5362`, atop the Granite 4.1
+revisable-overlay and performance commits, plus the Nemotron incremental-mel branch): it equals upstream
 `8ed8188` plus
 - `NemotronASRStreamSession`: incremental mel over a sliding window (per-step cost
   O(new frames) instead of O(whole buffer) — total O(buffer) for a dictation session
