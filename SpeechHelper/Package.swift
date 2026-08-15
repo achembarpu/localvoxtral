@@ -37,12 +37,13 @@ let package = Package(
         // 8ed8188 was upstream main at the merge of Blaizzy/mlx-audio-swift#232
         // (quantized-tied-embedding loader — required by the catalog's -qhead model,
         // SpeechModelCatalog). The pin now lives on the achembarpu fork at the merge of
-        // the Nemotron incremental-mel work (0343661): it carries the reviewed upstream base plus
-        // the streaming optimizations SpeechEngine's Nemotron engine needs. When those
+        // the Nemotron incremental-mel work (1c13f40): it carries the reviewed upstream base plus
+        // the streaming optimizations SpeechEngine's Nemotron engine needs, including retaining
+        // MLX's buffer pool between stream steps. When those
         // land upstream, return to upstream main and drop the fork — see DEPENDENCY.md.
         .package(
             url: "https://github.com/achembarpu/mlx-audio-swift.git",
-            revision: "034366152b81dd8e320a8093122601ce46d8be87"
+            revision: "1c13f40a0510c77b65c56107a3e3c3654a4aa33d"
         ),
     ],
     targets: [

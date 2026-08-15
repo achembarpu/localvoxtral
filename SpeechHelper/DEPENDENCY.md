@@ -39,12 +39,14 @@ merged #232 is a review-evolved variant of the fork commit (module-routed
 `embedToken`/`logits` instead of raw-weight access, plus upstream regression tests), so the
 switchback re-ran the live speechd integration lane rather than assuming equivalence.
 
-**This pin is on the `achembarpu/mlx-audio-swift` fork** (`0343661`, the current head of
+**This pin is on the `achembarpu/mlx-audio-swift` fork** (`1c13f40`, the current head of
 the `feat/nemotron-incremental-mel` branch): it equals the reviewed upstream base plus
 - `NemotronASRStreamSession`: incremental mel over a sliding window (per-step cost
   O(new frames) instead of O(whole buffer) — total O(buffer) for a dictation session
   instead of O(buffer²)); and an RNN-T prediction-network cache across consecutive
   unchanged frames (blank runs skip one LSTM forward per frame).
+  It also retains MLX's reusable Metal buffer pool between non-final stream steps;
+  the pool is cleared on final flush and after the helper releases the session.
 
 The live speechd integration lane (`remote-build.sh integration-speechd`) is the gate that
 proves the incremental-mel transcript quality on real audio and that the faster path holds up
