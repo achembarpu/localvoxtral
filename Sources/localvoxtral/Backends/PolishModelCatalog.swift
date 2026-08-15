@@ -61,7 +61,7 @@ enum PolishModelCatalog {
         ),
         PolishModelOption(
             repoID: "mlx-community/Qwen3.5-0.8B-OptiQ-4bit",
-            revision: "ef60586933bd2cc02b763f77eb8839a5114bbec1",
+            revision: "caddc45d3f1a150736f832916a72025ff7ffd040",
             displayName: "Qwen3.5 0.8B OptiQ (lowest RAM)",
             sizeOnDiskGB: 0.7,
             estimatedRAMGB: 0.9,
@@ -71,7 +71,7 @@ enum PolishModelCatalog {
         ),
         PolishModelOption(
             repoID: "mlx-community/Qwen3.5-2B-OptiQ-4bit",
-            revision: "adc8669eb431e3168aeb4e320bd7b757914350e2",
+            revision: "462e3d8e48b67e8178ad01ed4f003ee3fa0e06a1",
             displayName: "Qwen3.5 2B OptiQ (fast)",
             sizeOnDiskGB: 1.6,
             estimatedRAMGB: 1.9,
