@@ -305,7 +305,17 @@ enum SpeechModelLoader {
         modelRevision: String?,
         modelDirectory: String?
     ) async throws -> SpeechASREngine {
-        switch SpeechASREngineKind.infer(fromModelID: modelID) {
+        let engineKind: SpeechASREngineKind
+        if let modelID {
+            engineKind = SpeechASREngineKind.infer(fromModelID: modelID)
+        } else if let modelDirectory {
+            engineKind = SpeechASREngineKind.infer(
+                fromModelDirectory: URL(fileURLWithPath: modelDirectory)
+            )
+        } else {
+            engineKind = .voxtral
+        }
+        switch engineKind {
         case .voxtral:
             let model: VoxtralRealtimeModel
             if let dir = modelDirectory {
