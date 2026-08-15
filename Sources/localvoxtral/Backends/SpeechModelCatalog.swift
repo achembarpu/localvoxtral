@@ -82,7 +82,6 @@ enum SpeechModelCatalog {
             displayName: "Qwen3-ASR 0.6B (revisable overlay)",
             engine: .qwen3ASR,
             transcriptDeliveryCapabilities: [.appendOnly, .revisableSnapshot]
-        )
         ),
     ]
 
