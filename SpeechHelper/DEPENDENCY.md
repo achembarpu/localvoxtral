@@ -50,6 +50,12 @@ revisable-overlay and performance commits, plus the Nemotron incremental-mel bra
   at the model's window cadence and publishes complete replacement snapshots for the
   app's Overlay Buffer only. It is deliberately never negotiated for Live Auto-Paste;
   final-only avoids the growing-window re-decode overhead when revisions are not wanted.
+- Qwen3-ASR MLX execution is serialized per session in the fork. The adapter keeps
+  the exact offline generation path for append-only delivery (the safe mode for
+  live paste), while an explicitly revisable overlay session uses the fork's
+  `StreamingInferenceSession` and emits full authoritative snapshots. The latter
+  may revise provisional text and therefore must only be selected by a client whose
+  overlay can replace its draft; it is not a valid append-only insertion stream.
 
 The live speechd integration lane (`remote-build.sh integration-speechd`) is the gate for
 model behavior on real audio. When these fork changes land upstream, the procedure below

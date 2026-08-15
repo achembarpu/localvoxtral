@@ -207,16 +207,8 @@ final class Qwen3ASRSession: SpeechASRStreamingSession, @unchecked Sendable {
 /// server forwards `text` as an authoritative snapshot, never as an append-only
 /// delta, so Qwen's provisional revisions remain recoverable by the client.
 final class Qwen3ASRRevisableSession: SpeechASRStreamingSession, @unchecked Sendable {
-    private struct Snapshot {
-        var confirmed = ""
-        var provisional = ""
-        var finalText: String?
-
-        var text: String { finalText ?? confirmed + provisional }
-    }
-
     private final class State: @unchecked Sendable {
-        let lock = Mutex(Snapshot())
+        let lock = Mutex(QwenASRRevisableTextState())
         let ended = DispatchSemaphore(value: 0)
     }
 
@@ -231,18 +223,15 @@ final class Qwen3ASRRevisableSession: SpeechASRStreamingSession, @unchecked Send
             for await event in session.events {
                 switch event {
                 case .provisional(let text):
-                    state.lock.withLock { $0.provisional = text }
+                    state.lock.withLock { $0.applyProvisional(text) }
                 case .confirmed(let text):
-                    state.lock.withLock { $0.confirmed = text; $0.provisional = "" }
+                    state.lock.withLock { $0.applyConfirmed(text) }
                 case .displayUpdate(let confirmed, let provisional):
-                    state.lock.withLock {
-                        $0.confirmed = confirmed
-                        $0.provisional = provisional
-                    }
+                    state.lock.withLock { $0.applyDisplayUpdate(confirmed: confirmed, provisional: provisional) }
                 case .stats:
                     break
                 case .ended(let text):
-                    state.lock.withLock { $0.finalText = text; $0.provisional = "" }
+                    state.lock.withLock { $0.applyFinal(text) }
                     state.ended.signal()
                 }
             }
@@ -270,10 +259,10 @@ final class Qwen3ASRRevisableSession: SpeechASRStreamingSession, @unchecked Send
     var text: String { sessionText }
 
     private var isEnded: Bool {
-        state.lock.withLock { $0.finalText != nil }
+        state.lock.withLock { $0.isFinished }
     }
 
     private var sessionText: String {
-        state.lock.withLock { $0.text }
+        state.lock.withLock { $0.snapshot }
     }
 }
