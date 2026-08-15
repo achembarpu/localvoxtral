@@ -61,4 +61,16 @@ public enum SpeechASREngineKind: String, Sendable {
         if lower.contains("granite") { return .granite }
         return .voxtral
     }
+
+    /// Infer an engine for a local model directory when no model ID was supplied.
+    /// Unknown or malformed configs intentionally retain the Voxtral fallback so
+    /// custom directories preserve the historical behavior.
+    public static func infer(fromModelDirectory directory: URL) -> SpeechASREngineKind {
+        guard let data = try? Data(contentsOf: directory.appending(path: "config.json")),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let config = object as? [String: Any],
+              let modelType = config["model_type"] as? String
+        else { return .voxtral }
+        return infer(fromModelID: modelType)
+    }
 }

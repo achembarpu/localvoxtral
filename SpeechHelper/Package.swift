@@ -36,14 +36,14 @@ let package = Package(
         //
         // 8ed8188 was upstream main at the merge of Blaizzy/mlx-audio-swift#232
         // (quantized-tied-embedding loader — required by the catalog's -qhead model,
-        // SpeechModelCatalog). The pin now lives on the achembarpu fork: be2beeb is the
-        // Nemotron incremental-mel work and Granite 4.1's explicit revisable-overlay
-        // stream mode. Append-only remains Granite's default; the app negotiates the
-        // revision mode only for its replaceable Overlay Buffer. When both land upstream,
+        // SpeechModelCatalog). The pin now lives on the achembarpu fork and combines the
+        // Granite/Qwen revisable-overlay line with Nemotron's incremental-mel and
+        // cache-retention streaming work. Append-only remains Granite's default; the app
+        // negotiates revisions only for its replaceable Overlay Buffer. When both land upstream,
         // return to upstream main and drop the fork — see DEPENDENCY.md.
         .package(
             url: "https://github.com/achembarpu/mlx-audio-swift.git",
-            revision: "a6d536221f32651efd0fbe3722e7501a3e8e6b12"
+            revision: "81753c75d5fe94326d7a6222440c9b64c5c0c6ce"
         ),
     ],
     targets: [
